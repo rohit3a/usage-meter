@@ -1,0 +1,12 @@
+{
+  "name": "usage-meter",
+  "version": "0.2.0",
+  "description": "Live view of where every token goes: plan limit %, tokens and API-equivalent $, by machine, thread, subagent, task and model",
+  "author": {
+    "name": "Rohit",
+    "url": "https://github.com/rohit3a"
+  },
+  "types": "./types/index.d.ts",
+  "repository": "https://github.com/rohit3a/usage-meter",
+  "license": "MIT"
+}

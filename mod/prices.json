@@ -1,0 +1,165 @@
+{
+  "note": "List prices in USD per million tokens (Anthropic first-party API). Shared by the collector and the mod.",
+  "models": [
+    [
+      "claude-fable-5-1",
+      "Fable 5.1",
+      10,
+      50,
+      0.25
+    ],
+    [
+      "claude-mythos-5-1",
+      "Mythos 5.1",
+      10,
+      50,
+      0.25
+    ],
+    [
+      "claude-fable-5",
+      "Fable 5",
+      10,
+      50,
+      1
+    ],
+    [
+      "claude-mythos-5",
+      "Mythos 5",
+      10,
+      50,
+      1
+    ],
+    [
+      "claude-opus-5-5",
+      "Opus 5.5",
+      4,
+      20,
+      0.2
+    ],
+    [
+      "claude-opus-5",
+      "Opus 5",
+      5,
+      25,
+      0.5
+    ],
+    [
+      "claude-opus-4-8",
+      "Opus 4.8",
+      5,
+      25,
+      0.5
+    ],
+    [
+      "claude-opus-4-7",
+      "Opus 4.7",
+      5,
+      25,
+      0.5
+    ],
+    [
+      "claude-opus-4-6",
+      "Opus 4.6",
+      5,
+      25,
+      0.5
+    ],
+    [
+      "claude-opus-4-5",
+      "Opus 4.5",
+      5,
+      25,
+      0.5
+    ],
+    [
+      "claude-sonnet-5-5",
+      "Sonnet 5.5",
+      2,
+      10,
+      0.2
+    ],
+    [
+      "claude-sonnet-5",
+      "Sonnet 5",
+      2,
+      10,
+      0.2
+    ],
+    [
+      "claude-sonnet-4-6",
+      "Sonnet 4.6",
+      3,
+      15,
+      0.3
+    ],
+    [
+      "claude-sonnet-4-5",
+      "Sonnet 4.5",
+      3,
+      15,
+      0.3
+    ],
+    [
+      "claude-haiku-5-5",
+      "Haiku 5.5",
+      0.1,
+      0.5,
+      0.01
+    ],
+    [
+      "claude-haiku-4-5",
+      "Haiku 4.5",
+      1,
+      5,
+      0.1
+    ]
+  ],
+  "columns": [
+    "id prefix",
+    "label",
+    "input",
+    "output",
+    "cache read"
+  ],
+  "cacheWrite5m": 1.25,
+  "cacheWrite1h": 2.0,
+  "fast": {
+    "claude-opus-5-5": 2,
+    "claude-opus-5": 2
+  },
+  "webSearchUsd": 0.01,
+  "fallback": "claude-opus-5-5",
+  "tiers": {
+    "claude-haiku-5-5": {
+      "over": 100000,
+      "in": 0.5,
+      "out": 2.5,
+      "cr": 0.05,
+      "note": "prompts over 100k tokens"
+    }
+  },
+  "changes": [
+    {
+      "model": "claude-sonnet-5-5",
+      "from": "2026-10-07",
+      "cr": 0.1,
+      "note": "API-only cut (ClaudeDevs, 2026-10-09): Claude Code plan limits unchanged",
+      "apiOnly": true
+    }
+  ],
+  "families": {
+    "opus": [
+      "opus"
+    ],
+    "sonnet": [
+      "sonnet"
+    ],
+    "haiku": [
+      "haiku"
+    ],
+    "fable": [
+      "fable",
+      "mythos"
+    ]
+  }
+}
