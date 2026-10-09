@@ -179,7 +179,7 @@ function world(on: On, f: Files, reads: string[] = []) {
       },
       rateLimits: [
         { kind: 'five_hour', percentUsed: 2, resetsAt: new Date(T0 + 3 * HOUR).toISOString() },
-        { kind: 'seven_day', percentUsed: 79, resetsAt: new Date(T0 + 28 * HOUR).toISOString() },
+        { kind: 'seven_day', percentUsed: 64, resetsAt: new Date(T0 + 28 * HOUR).toISOString() },
       ],
       cost: { usd: 18.2 },
     },
