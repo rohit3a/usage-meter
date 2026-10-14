@@ -1,6 +1,6 @@
 {
   "name": "usage-meter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Live view of where every token goes: plan limit %, tokens and API-equivalent $, by machine, thread, subagent, task and model",
   "author": {
     "name": "Rohit",
@@ -8,5 +8,31 @@
   },
   "types": "./types/index.d.ts",
   "repository": "https://github.com/rohit3a/usage-meter",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "cacheCountdown": {
+      "type": "boolean",
+      "title": "Cache countdown",
+      "description": "After 10 minutes idle, the band counts down to when the session's prompt cache expires (after that, your next message pays to cache the whole context again).",
+      "default": true
+    },
+    "idleCompact": {
+      "type": "boolean",
+      "title": "Compact idle sessions",
+      "description": "Compact a session 5 minutes before its prompt cache expires, while the cache can still serve the read, so your next message caches a short summary instead of the whole conversation.",
+      "default": false
+    },
+    "idleCompactMinTokens": {
+      "type": "number",
+      "title": "Idle compaction: minimum context",
+      "description": "Only sessions whose context is at least this many tokens are compacted when idle.",
+      "default": 150000
+    },
+    "cacheMinutes": {
+      "type": "number",
+      "title": "Prompt cache lifetime (minutes)",
+      "description": "How long the main thread's prompt cache lives after its last request: 60 for Claude Code on a subscription, 5 where only the 5-minute cache is used.",
+      "default": 60
+    }
+  }
 }

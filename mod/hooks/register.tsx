@@ -7,6 +7,7 @@ import type {
   ContextView,
   FleetEntry,
   HistoryDay,
+  Idle,
   Live,
   Pulse,
   Scope,
@@ -46,6 +47,7 @@ const scopeA = atom({ plugin: 'usage-meter', key: 'scope' } as const, 'window')
 const expandedA = atom({ plugin: 'usage-meter', key: 'expanded' } as const, [])
 const allA = atom({ plugin: 'usage-meter', key: 'isAllShown' } as const, false)
 const hiddenA = atom({ plugin: 'usage-meter', key: 'isBandHidden' } as const, false)
+const idleA = atom({ plugin: 'usage-meter', key: 'idle' } as const, null)
 
 // ---------------------------------------------------------------- files
 
@@ -275,6 +277,88 @@ async function pushLive($: $T): Promise<void> {
   await update($, liveA, () => copy)
 }
 
+// ---------------------------------------------------------------- idle cache
+
+// The main thread's prompt cache lapses an hour (cacheMinutes) after its last
+// request; the next message then writes the whole context to the cache again.
+// After COUNTDOWN_AFTER idle the band counts down to that, and with
+// idleCompact on, a session holding a large context is compacted COMPACT_LEAD
+// before it lapses, while the cache still serves the read: the next message
+// then writes the short summary instead of the whole conversation.
+
+type Opts = { idleCompact: boolean; idleCompactMinTokens: number; cacheMinutes: number; cacheCountdown: boolean }
+const DEFAULTS: Opts = { idleCompact: false, idleCompactMinTokens: 150_000, cacheMinutes: 60, cacheCountdown: true }
+const MIN = 60_000
+const COUNTDOWN_AFTER = 10 * MIN
+const COMPACT_LEAD = 5 * MIN
+const COMPACT_NOTE =
+  'The session went idle and its prompt cache was about to expire. Keep everything needed to pick the work back up: ' +
+  'the goal, decisions made, what is done, what is next, and the files and commands involved.'
+
+let opts: Opts = DEFAULTS
+let isCompacting = false
+let idleKey = ''
+
+function isTurnRunning(): boolean {
+  return live !== null && live.endedAt === null
+}
+
+function canIdleCompact(idle: Idle): boolean {
+  return opts.idleCompact && !idle.compacted && !idle.isSkipped && idle.ctx >= opts.idleCompactMinTokens
+}
+
+function idleLine(idle: Idle | null, now: number): { text: string; color?: string } | null {
+  if (!idle || isTurnRunning()) return null
+  if (idle.compacted) {
+    const c = idle.compacted
+    return { text: `◷ compacted while idle · ${fmtTok(c.before)} → ${fmtTok(c.after)} context · its cache was about to expire`, color: 'green' }
+  }
+  if (!opts.cacheCountdown || now - idle.at < COUNTDOWN_AFTER) return null
+  const left = idle.at + opts.cacheMinutes * MIN - now
+  if (left <= 0) return { text: `◷ cache expired ${fmtDur(-left)} ago · your next message re-caches ${fmtTok(idle.ctx)} context` }
+  const will = canIdleCompact(idle)
+  const parts = [
+    `◷ cache expires in ${Math.ceil(left / MIN)}m`,
+    `${fmtTok(idle.ctx)} context`,
+    will ? (left > COMPACT_LEAD ? `auto-compacts in ${Math.ceil((left - COMPACT_LEAD) / MIN)}m` : 'compacting…') : '',
+  ].filter(Boolean)
+  return { text: parts.join(' · '), color: left <= 10 * MIN ? 'yellow' : undefined }
+}
+
+async function idleTick($: $T): Promise<void> {
+  const idle = await read($, idleA)
+  if (!idle) return
+  const now = await $.clock.now()
+  const left = idle.at + opts.cacheMinutes * MIN - now
+  const isBusy = isTurnRunning() || isCompacting || codexCalls > 0 || [...liveAgents.values()].some(a => a.isRunning)
+  if (canIdleCompact(idle) && !isBusy && left > 0 && left <= COMPACT_LEAD) void idleCompact($, idle, now)
+  const key = JSON.stringify(idleLine(idle, now))
+  if (key !== idleKey) {
+    idleKey = key
+    $.ui.invalidate('ui.render')
+  }
+}
+
+async function idleCompact($: $T, idle: Idle, now: number): Promise<void> {
+  isCompacting = true
+  try {
+    const r = await $.session.compact({ instructions: COMPACT_NOTE })
+    if (r.skip !== undefined) {
+      await update($, idleA, i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
+      return
+    }
+    const compacted = { before: r.tokensBefore ?? idle.ctx, after: r.tokensAfter ?? 0, at: now }
+    await update($, idleA, i => (i && i.at === idle.at ? { ...i, compacted } : i))
+  } catch (err) {
+    // a turn started meanwhile, or the compaction failed: wait for the next request
+    $.ui.log(`usage-meter: idle compaction did not run: ${String(err)}`, { to: 'debug' })
+    await update($, idleA, i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
+  } finally {
+    isCompacting = false
+    $.ui.invalidate('ui.render')
+  }
+}
+
 // ---------------------------------------------------------------- formatting
 
 function fmtTok(n: number): string {
@@ -402,7 +486,9 @@ function summaryText(v: View | null, now: number): string {
 
 // ---------------------------------------------------------------- hooks
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  opts = { ...DEFAULTS, ...(options as Partial<Opts>) }
+
   on('session.start', async ($, e, next) => {
     await initPaths($)
     sessionId = await $.session.id()
@@ -424,6 +510,7 @@ export const register: Register = on => {
         if (isCodexLive || isOpen) $.ui.invalidate('ui.render')
         if (isOpen && tick % 5 === 0 && (await read($, tabA)) === 'context') await computeContext($)
         if (tick % 2 === 0) await saveSamples($)
+        await idleTick($)
       })()
     })
     void sample($).then(() => Promise.all([loadView($), loadPulse($)]))
@@ -487,6 +574,11 @@ export const register: Register = on => {
           }
           await pushLive($)
         }
+        if (!e.agentId) {
+          const at = await $.clock.now()
+          const ctx = u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
+          await update($, idleA, () => ({ at, ctx }))
+        }
         await sample($)
       }
     } catch (err) {
@@ -525,6 +617,16 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A compaction the person or the engine ran replaces what the cache held.
+  on('session.compact', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agentId && r.messages && (e.trigger === 'manual' || e.trigger === 'auto')) {
+      await update($, idleA, () => null).catch(() => undefined)
+    }
+
+    return r
+  })
+
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
     if (e.cost && e.cost.usd !== ccUsd) {
@@ -545,6 +647,7 @@ export const register: Register = on => {
       liveAgents.clear()
       sessionId = ''
       ccUsd = null
+      await update($, idleA, () => null)
     }
 
     return next(e)
@@ -574,10 +677,19 @@ export const register: Register = on => {
     const p = await read($, pulseA)
     const run = p?.codex.runs.find(r => r.status === 'running' && r.parent?.sid === sessionId)
     const v = await read($, viewA)
-    if (!lv && !run && !v) return next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
     const now = await $.clock.now()
+    const il = e.props.isWorking ? null : idleLine(await read($, idleA), now)
+    if (!lv && !run && !v && !il) return next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const W = e.props.bodyColumns
+
+    const idleRow = il ? (
+      <Box flexDirection="row" width={W}>
+        <Text color={il.color} dimColor={!il.color} wrap="truncate-end">
+          {il.text}
+        </Text>
+      </Box>
+    ) : null
 
     let turnRow: JSX.Element | null = null
     if (lv) {
@@ -663,6 +775,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" width={W}>
         {codexRow}
+        {idleRow}
         {turnRow ?? meterRow}
       </Box>
     )

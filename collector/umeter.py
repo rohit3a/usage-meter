@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fcntl
+import fnmatch
 import json
 import os
 import re
@@ -92,6 +93,23 @@ def write_json(path: str, data) -> None:
 def log(msg: str) -> None:
     sys.stderr.write(f"{dt.datetime.now().strftime('%H:%M:%S')} {msg}\n")
     sys.stderr.flush()
+
+
+STAMP_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d(-\d+)?Z?[-_ ]*")
+
+
+def stream_start(path: str, st) -> int:
+    """When a stream log began: the ISO timestamp its name starts with, if any."""
+    m = STAMP_RE.match(os.path.basename(path))
+    if m:
+        stamp = m.group(0).rstrip("-_ ").rstrip("Z")
+        for fmt in ("%Y-%m-%dT%H-%M-%S-%f", "%Y-%m-%dT%H-%M-%S"):
+            try:
+                t = dt.datetime.strptime(stamp, fmt).replace(tzinfo=dt.timezone.utc)
+                return min(int(t.timestamp() * 1000), int(st.st_mtime * 1000))
+            except ValueError:
+                continue
+    return min(now_ms(), int(st.st_mtime * 1000))
 
 
 def default_host() -> str:
@@ -378,6 +396,11 @@ class Collector:
                 added += self.ingest_file(path, sid, aid, remote)
             except Exception:  # one bad file never stops the rest
                 log(f"could not read {path}: {traceback.format_exc(limit=1).strip()}")
+        for path, src in self.stream_logs():
+            try:
+                added += self.ingest_stream(path, src)
+            except Exception:
+                log(f"could not read {path}: {traceback.format_exc(limit=1).strip()}")
         if added:
             self.last_ingest = now_ms()
             self.rows_total += added
@@ -520,11 +543,123 @@ class Collector:
         ]
         return 1 if day.add(row, msg_id[-14:], extra) else 0
 
+    # -- stream-json logs (claude -p --output-format stream-json) kept by other tools
+
+    def stream_logs(self):
+        """(path, source) for each stream-json log a "streamLogs" entry of
+        local/collector.json names. Runs started with --no-session-persistence
+        leave no transcript, so these logs are the only record of their usage."""
+        cutoff = time.time() - KEEP_DAYS * 86400
+        out = []
+        for src in self.cfg.get("streamLogs") or []:
+            pattern = re.compile(fnmatch.translate(src.get("match", "*.jsonl")))
+            for folder in src.get("dirs") or []:
+                try:
+                    entries = list(os.scandir(os.path.expanduser(folder)))
+                except OSError:
+                    continue
+                for e in entries:
+                    try:
+                        if pattern.match(e.name) and e.is_file() and e.stat().st_mtime >= cutoff:
+                            out.append((e.path, src))
+                    except OSError:
+                        continue
+        return out
+
+    def ingest_stream(self, path: str, src: dict) -> int:
+        """A stream-json log carries each request's input and cache tokens, but
+        output only as running thinking estimates; its closing result event
+        has the run's exact totals per model, so a final row per model makes
+        up the difference. No line has a timestamp: rows are placed between
+        the file's start (its name's timestamp, else the first sighting) and
+        its last write, by how far into the file they are."""
+        st = os.stat(path)
+        streams = self.state.setdefault("streams", {})
+        fs = streams.get(path)
+        if fs is None or fs.get("ino") != st.st_ino or st.st_size < fs.get("off", 0):
+            fs = {"ino": st.st_ino, "off": 0, "sid": "", "start": stream_start(path, st), "think": 0,
+                  "sums": {}, "ids": [], "done": False}
+            streams[path] = fs
+        if fs["done"] or st.st_size == fs["off"]:
+            return 0
+        with open(path, "rb") as f:
+            f.seek(fs["off"])
+            data = f.read(st.st_size - fs["off"])
+        end = data.rfind(b"\n")
+        if end < 0:
+            return 0
+        base = fs["off"]
+        fs["off"] += end + 1
+        start, last = fs["start"], int(st.st_mtime * 1000)
+        name = os.path.basename(path)[:-6]
+        run = STAMP_RE.sub("", name) or name
+        seen = set(fs["ids"])
+        added = 0
+        pos = base
+        for line in data[: end + 1].splitlines(keepends=True):
+            pos += len(line)
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            ts = start + int((last - start) * pos / max(st.st_size, 1))
+            kind = d.get("type")
+            if not fs["sid"] and d.get("session_id"):
+                fs["sid"] = str(d["session_id"])
+            sid = fs["sid"] or name
+            if kind == "system" and d.get("subtype") == "thinking_tokens":
+                fs["think"] += int(d.get("estimated_tokens_delta") or 0)
+                continue
+            if kind == "assistant":
+                msg = d.get("message") or {}
+                usage, model, mid = msg.get("usage"), msg.get("model") or "", msg.get("id") or ""
+                if not usage or not mid or model == "<synthetic>" or mid in seen:
+                    continue
+                seen.add(mid)
+                out = int(usage.get("output_tokens") or 0) + fs["think"]
+                fs["think"] = 0
+                vals = [int(usage.get("input_tokens") or 0), out, int(usage.get("cache_read_input_tokens") or 0),
+                        int(usage.get("cache_creation_input_tokens") or 0)]
+                sums = fs["sums"].setdefault(model, [0, 0, 0, 0])
+                for i, v in enumerate(vals):
+                    sums[i] += v
+                added += self.stream_row(ts, sid, run, src, model, vals, mid[-14:])
+            elif kind == "result":
+                for model, mu in (d.get("modelUsage") or {}).items():
+                    sums = fs["sums"].get(model, [0, 0, 0, 0])
+                    total = [int(mu.get("inputTokens") or 0), int(mu.get("outputTokens") or 0),
+                             int(mu.get("cacheReadInputTokens") or 0), int(mu.get("cacheCreationInputTokens") or 0)]
+                    rest = [max(0, t - r) for t, r in zip(total, sums)]
+                    if any(rest):
+                        added += self.stream_row(last, sid, run, src, model, rest, f"{sid[:8]}~{model[-5:]}")
+                fs["done"] = True
+                break
+        fs["ids"] = list(seen)[-SEEN_PER_FILE:]
+        return added
+
+    def stream_row(self, ts: int, sid: str, run: str, src: dict, model: str, vals: list, msg_id: str) -> int:
+        day = self.ledger.day(day_of(ts))
+        label = src.get("label") or "claude -p"
+        if sid not in day.doc["sessions"]:
+            day.doc["sessions"][sid] = {"title": f"{label} · {run}"[:80], "cwd": os.path.expanduser(src.get("cwd", "")),
+                                        "entry": "stream-log"}
+        pid = f"run-{sid}"
+        if pid not in day.doc["prompts"]:
+            day.doc["prompts"][pid] = {"s": sid, "text": f"{label}: {run}"[:140], "at": ts}
+            day.dirty = True
+        i, o, cr, cw = vals
+        # claude -p writes its prompt cache with the 1-hour lifetime
+        row = [ts, day.index("s", sid), day.index("p", pid), -1, day.index("m", model), i, o, cr, 0, cw, 0, 0]
+        return 1 if day.add(row, msg_id, [-1, -1, -1]) else 0
+
     def save_state(self) -> None:
         # drop offsets for transcripts that no longer exist
         files = self.state["files"]
         for path in [p for p in files if not os.path.exists(p)]:
             del files[path]
+        streams = self.state.get("streams", {})
+        for path in [p for p in streams if not os.path.exists(p)]:
+            del streams[path]
         owners = self.state["toolOwner"]
         if len(owners) > 20000:
             self.state["toolOwner"] = dict(list(owners.items())[-10000:])

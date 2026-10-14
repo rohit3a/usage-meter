@@ -198,6 +198,18 @@ export type Live = {
   agents: LiveAgent[]
 }
 
+/** The main thread's prompt cache: when its last request ran and how much it holds. */
+export type Idle = {
+  /** when the main thread's last request finished (ms) */
+  at: number
+  /** context that request sent: what the cache holds */
+  ctx: number
+  /** set once an idle compaction replaced the context */
+  compacted?: { before: number; after: number; at: number }
+  /** an idle compaction was declined or failed: not retried until the next request */
+  isSkipped?: boolean
+}
+
 export type Tab = 'overview' | 'sessions' | 'codex' | 'threads' | 'tasks' | 'breakdown' | 'history' | 'accuracy' | 'context'
 export type Scope = 'session' | 'window' | 'week'
 
@@ -215,6 +227,7 @@ declare module 'claude-code' {
       expanded: string[]
       isAllShown: boolean
       isBandHidden: boolean
+      idle: Idle | null
     }
   }
 }

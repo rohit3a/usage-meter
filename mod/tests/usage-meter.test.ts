@@ -460,3 +460,61 @@ test('band follows the Codex run this chat started, with stop and watch', async 
     await band.unmount()
   }
 })
+
+const IDLE_BAND = {
+  plugin: 'usage-meter',
+  component: 'AbovePrompt' as const,
+  surface: 'terminal' as const,
+  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+}
+
+async function idleTurn($: Engine, clock: MockClock) {
+  await $.session.start({ cwd: '/home/t/proj', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  await $.turn.start({ text: 'Do the thing', turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 3 }))
+  await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'completed' } as never)
+}
+
+async function bandTexts($: Engine): Promise<string[]> {
+  const band = await $.ui.mount(IDLE_BAND)
+  const have = await texts(band)
+  await band.unmount()
+  return have
+}
+
+test('idle: counts down to the cache expiring, then compacts 5 minutes before', { options: { idleCompact: true, idleCompactMinTokens: 100_000 } }, async ($, on) => {
+  const clock = world(on, files())
+  const compacts: unknown[] = []
+  on('session.compact', ($, e) => {
+    compacts.push(e)
+    return { messages: [{ role: 'user' as const, text: 'Summary of the work so far', toolUses: [] }], tokensBefore: 106_000, tokensAfter: 9_000 }
+  })
+  await idleTurn($, clock)
+  await clock.advance(9 * MIN)
+  expect((await bandTexts($)).some(t => t.startsWith('◷'))).toBe(false)
+  await clock.advance(2 * MIN)
+  expect(missing(await bandTexts($), ['◷ cache expires in 49m · 106k context · auto-compacts in 44m'])).toEqual([])
+  await clock.advance(43 * MIN)
+  expect(compacts.length).toBe(0)
+  await clock.advance(2 * MIN)
+  expect(compacts.length).toBe(1)
+  expect(missing(await bandTexts($), [/^◷ compacted while idle · 106k → 9\.0k context/])).toEqual([])
+  await clock.advance(10 * MIN)
+  expect(compacts.length).toBe(1)
+})
+
+test('idle: with compaction off, says when the cache expired; small contexts are left alone', { options: { idleCompactMinTokens: 100_000 } }, async ($, on) => {
+  const clock = world(on, files())
+  const compacts: unknown[] = []
+  on('session.compact', ($, e) => {
+    compacts.push(e)
+    return { messages: [{ role: 'user' as const, text: 'Summary of the work so far', toolUses: [] }], tokensBefore: 106_000, tokensAfter: 9_000 }
+  })
+  await idleTurn($, clock)
+  await clock.advance(52 * MIN)
+  expect(missing(await bandTexts($), [/^◷ cache expires in 8m · 106k context$/])).toEqual([])
+  await clock.advance(10 * MIN)
+  expect(missing(await bandTexts($), ['◷ cache expired 2m ago · your next message re-caches 106k context'])).toEqual([])
+  expect(compacts.length).toBe(0)
+})

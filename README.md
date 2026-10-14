@@ -10,6 +10,10 @@ right inside Claude Code: in the status line, a live band above the prompt, and 
 - **Every machine in one view.** Run a collector on each box and they sync over SSH.
 - **Codex too.** Follows Codex runs, links the ones Claude launched to the chat that started them, and can stop them.
 - **Never double counts.** Every request is keyed by its API message id.
+- **Cache countdown.** After 10 minutes idle, the band counts down to when the session's
+  prompt cache expires, and can compact a big session 5 minutes before it does (opt-in).
+- **Headless runs too.** Point it at `claude -p --output-format stream-json` logs and runs
+  that leave no transcript (`--no-session-persistence`) still count.
 - **Stays fast.** A background collector does the math; the mod only redraws when the summary changes.
 
 ## Install
@@ -37,6 +41,40 @@ e.g. a Tailscale name). Key-based SSH is required; sync runs in the background.
 deploy/install.sh --host Desktop --peer Laptop=my-laptop   # on the desktop
 deploy/install.sh --host Laptop                             # on the laptop
 ```
+
+### Idle cache countdown and compaction
+
+Claude Code caches a session's prompt for an hour after its last request. Once that
+lapses, your next message pays to cache the whole conversation again (2× input price
+on every token of context). After 10 minutes idle the band shows how long is left:
+
+```
+◷ cache expires in 12m · 352k context · auto-compacts in 7m
+```
+
+With **Compact idle sessions** on, a session holding at least 150k tokens of context
+is compacted 5 minutes before its cache expires, while the cache can still serve the
+read, so the next message caches a short summary instead. It's off by default; turn it
+on with `/plugin configure usage-meter` (or `claude plugin configure usage-meter@skills-dir`),
+which also sets the minimum context, the cache lifetime and whether the countdown shows.
+It never runs during a turn, while a subagent or Codex run is going, or twice for one idle stretch.
+
+### Headless (`claude -p`) runs
+
+Runs started with `--no-session-persistence` (benchmarks, scripts, CI) write no
+transcript, so the collector can't see them, yet they use your plan's limits. If you
+keep their `--output-format stream-json` output, list the folders in
+`~/.claude/usage-meter/local/collector.json` and restart the collector:
+
+```json
+"streamLogs": [
+  { "label": "Benchmarks", "cwd": "~/code/bench", "match": "*claude*.jsonl", "dirs": ["~/code/bench/logs"] }
+]
+```
+
+Each log becomes a session titled `<label> · <file name>` under the `cwd`'s project.
+Requests are counted as they stream (output from the thinking estimates), then topped
+up to the exact per-model totals of the run's closing `result` event.
 
 ## How it works
 
@@ -78,7 +116,7 @@ deploy/install.sh --host Laptop                             # on the laptop
   hosts/<host>/days/<day>.json   requests; written only by <host>'s collector
   hosts/<host>/limits.json       5h / 7d limit readings
   hosts/<host>/status.json       collector heartbeat and sync results
-  local/collector.json           this machine's name and sync peers
+  local/collector.json           this machine's name, sync peers and stream-log folders
   local/state.json               transcript read offsets (rebuildable)
 ```
 
