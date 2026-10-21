@@ -18,7 +18,9 @@ right inside Claude Code: in the status line, a live band above the prompt, and 
 
 ## Install
 
-Needs Python 3.9+ and Claude Code (terminal or the desktop app's Code tab). Linux or macOS.
+Needs Python 3.9+ and Claude Code 2.1.280 or later (terminal or the desktop app's Code tab). Linux or macOS.
+Some builds, 2.1.280 among them, keep function hooks behind a switch: add `"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"`
+to the `env` block of `~/.claude/settings.json`.
 
 ```bash
 git clone https://github.com/rohit3a/usage-meter.git

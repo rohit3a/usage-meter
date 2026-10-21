@@ -483,7 +483,11 @@ async function bandTexts($: Engine): Promise<string[]> {
   return have
 }
 
-test('idle: counts down to the cache expiring, then compacts 5 minutes before', { options: { idleCompact: true, idleCompactMinTokens: 100_000 } }, async ($, on) => {
+// 2.1.280's kit ignores a test's `options`, so idleCompact can't be switched on
+// there; that kit has no mock.session either, which is how this file tells them apart
+const hasTestOptions = 'session' in mock
+
+if (hasTestOptions) test('idle: counts down to the cache expiring, then compacts 5 minutes before', { options: { idleCompact: true, idleCompactMinTokens: 100_000 } }, async ($, on) => {
   const clock = world(on, files())
   const compacts: unknown[] = []
   on('session.compact', ($, e) => {
