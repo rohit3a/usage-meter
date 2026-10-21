@@ -3,7 +3,7 @@
   "version": "0.3.1",
   "description": "Live view of where every token goes: plan limit %, tokens and API-equivalent $, by machine, thread, subagent, task and model",
   "author": {
-    "name": "Rohit",
+    "name": "rohit3a",
     "url": "https://github.com/rohit3a"
   },
   "types": "./types/index.d.ts",
