@@ -1,6 +1,6 @@
 {
   "name": "usage-meter",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Live view of where every token goes: plan limit %, tokens and API-equivalent $, by machine, thread, subagent, task and model",
   "author": {
     "name": "Rohit",

@@ -1,5 +1,4 @@
-import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
+import type { EngineInterface, PluginState, Register, SessionRateLimit } from 'claude-code'
 
 import type {
   CodexRun,
@@ -36,18 +35,92 @@ const ALERTS = [80, 90, 95]
 const LABELS: Record<string, string | undefined> = { five_hour: '5h', seven_day: '7d' }
 const HOST_COLORS = ['#58a6ff', '#bc8cff', '#3fb950', '#d29922', '#8b949e']
 
-const viewA = atom({ plugin: 'usage-meter', key: 'view' } as const, null)
-const pulseA = atom({ plugin: 'usage-meter', key: 'pulse' } as const, null)
-const mineA = atom({ plugin: 'usage-meter', key: 'mine' } as const, null)
-const contextA = atom({ plugin: 'usage-meter', key: 'context' } as const, null)
-const ccA = atom({ plugin: 'usage-meter', key: 'cc' } as const, null)
-const liveA = atom({ plugin: 'usage-meter', key: 'live' } as const, null)
-const tabA = atom({ plugin: 'usage-meter', key: 'tab' } as const, 'overview')
-const scopeA = atom({ plugin: 'usage-meter', key: 'scope' } as const, 'window')
-const expandedA = atom({ plugin: 'usage-meter', key: 'expanded' } as const, [])
-const allA = atom({ plugin: 'usage-meter', key: 'isAllShown' } as const, false)
-const hiddenA = atom({ plugin: 'usage-meter', key: 'isBandHidden' } as const, false)
-const idleA = atom({ plugin: 'usage-meter', key: 'idle' } as const, null)
+// ---------------------------------------------------------------- state
+
+// The host's $.state, or module variables on a build without it: 2.1.280 (the
+// desktop app's build before 3.1623) has none, so there each value lives here
+// and a write redraws through $.ui.invalidate. A $.state call has to name its
+// plugin and key literally, hence one line per value in hostGet and hostSet.
+
+type Values = PluginState['usage-meter']
+type Key = keyof Values
+const INITIAL: Values = {
+  view: null, pulse: null, mine: null, context: null, cc: null, live: null, tab: 'overview', scope: 'window', expanded: [], isAllShown: false, isBandHidden: false, idle: null,
+}
+// undefined until the first read finds out
+let hasState: boolean | undefined
+const local: Partial<Values> = {}
+
+// Not async: on a build without $.state, `$.state.get` throws right here, while
+// a refusal by the host comes back as a rejected promise.
+function hostGet($: $T, key: Key): Promise<{ value: unknown; version: number }> {
+  switch (key) {
+    case 'view': return $.state.get({ plugin: 'usage-meter', key: 'view' })
+    case 'pulse': return $.state.get({ plugin: 'usage-meter', key: 'pulse' })
+    case 'mine': return $.state.get({ plugin: 'usage-meter', key: 'mine' })
+    case 'context': return $.state.get({ plugin: 'usage-meter', key: 'context' })
+    case 'cc': return $.state.get({ plugin: 'usage-meter', key: 'cc' })
+    case 'live': return $.state.get({ plugin: 'usage-meter', key: 'live' })
+    case 'tab': return $.state.get({ plugin: 'usage-meter', key: 'tab' })
+    case 'scope': return $.state.get({ plugin: 'usage-meter', key: 'scope' })
+    case 'expanded': return $.state.get({ plugin: 'usage-meter', key: 'expanded' })
+    case 'isAllShown': return $.state.get({ plugin: 'usage-meter', key: 'isAllShown' })
+    case 'isBandHidden': return $.state.get({ plugin: 'usage-meter', key: 'isBandHidden' })
+    case 'idle': return $.state.get({ plugin: 'usage-meter', key: 'idle' })
+  }
+}
+
+function hostSet($: $T, key: Key, value: unknown, ifVersion: number): Promise<{ isSet: boolean }> {
+  const at = { ifVersion }
+  switch (key) {
+    case 'view': return $.state.set({ plugin: 'usage-meter', key: 'view' }, value as Values['view'], at)
+    case 'pulse': return $.state.set({ plugin: 'usage-meter', key: 'pulse' }, value as Values['pulse'], at)
+    case 'mine': return $.state.set({ plugin: 'usage-meter', key: 'mine' }, value as Values['mine'], at)
+    case 'context': return $.state.set({ plugin: 'usage-meter', key: 'context' }, value as Values['context'], at)
+    case 'cc': return $.state.set({ plugin: 'usage-meter', key: 'cc' }, value as Values['cc'], at)
+    case 'live': return $.state.set({ plugin: 'usage-meter', key: 'live' }, value as Values['live'], at)
+    case 'tab': return $.state.set({ plugin: 'usage-meter', key: 'tab' }, value as Values['tab'], at)
+    case 'scope': return $.state.set({ plugin: 'usage-meter', key: 'scope' }, value as Values['scope'], at)
+    case 'expanded': return $.state.set({ plugin: 'usage-meter', key: 'expanded' }, value as Values['expanded'], at)
+    case 'isAllShown': return $.state.set({ plugin: 'usage-meter', key: 'isAllShown' }, value as Values['isAllShown'], at)
+    case 'isBandHidden': return $.state.set({ plugin: 'usage-meter', key: 'isBandHidden' }, value as Values['isBandHidden'], at)
+    case 'idle': return $.state.set({ plugin: 'usage-meter', key: 'idle' }, value as Values['idle'], at)
+  }
+}
+
+/** The value under `key`; while a ui.render hook draws, a $.state read subscribes it. */
+async function read<K extends Key>($: $T, key: K): Promise<Values[K]> {
+  if (hasState !== false) {
+    let held: Promise<{ value: unknown }> | undefined
+    try {
+      held = hostGet($, key)
+    } catch {
+      hasState = false
+    }
+    if (held !== undefined) {
+      const { value } = await held
+      hasState = true
+      return (value ?? INITIAL[key]) as Values[K]
+    }
+  }
+  return (local[key] ?? INITIAL[key]) as Values[K]
+}
+
+/** Applies `fn` and writes, as `update` from claude-code does: with `ifVersion`, again on a miss. */
+async function update<K extends Key>($: $T, key: K, fn: (v: Values[K]) => Values[K]): Promise<Values[K]> {
+  if (hasState === undefined) await read($, key)
+  if (!hasState) {
+    const value = fn((local[key] ?? INITIAL[key]) as Values[K])
+    local[key] = value
+    $.ui.invalidate('ui.render')
+    return value
+  }
+  for (;;) {
+    const held = await hostGet($, key)
+    const value = fn((held.value ?? INITIAL[key]) as Values[K])
+    if ((await hostSet($, key, value, held.version)).isSet) return value
+  }
+}
 
 // ---------------------------------------------------------------- files
 
@@ -78,7 +151,7 @@ async function loadView($: $T): Promise<void> {
       const view = JSON.parse(String(await $.fs.read(`${root}/local/view.json`))) as View
       viewMtime = vm
       pulseRates = view.windows.find(w => w.kind === 'five_hour')?.rates ?? null
-      await update($, viewA, () => view)
+      await update($, 'view', () => view)
     } catch {
       // mid-replace: the next tick reads it
     }
@@ -91,7 +164,7 @@ async function loadView($: $T): Promise<void> {
       const mine = JSON.parse(String(await $.fs.read(path))) as ScopeView
       mineMtime = mm
       mineFor = sessionId
-      await update($, mineA, () => mine)
+      await update($, 'mine', () => mine)
     } catch {
       // try again next tick
     }
@@ -110,7 +183,7 @@ async function loadPulse($: $T): Promise<void> {
     const next = JSON.parse(String(await $.fs.read(`${root}/local/live.json`))) as Pulse
     pulseMtime = m
     pulse = next
-    await update($, pulseA, () => next)
+    await update($, 'pulse', () => next)
   } catch {
     // mid-replace: the next tick reads it
   }
@@ -192,7 +265,7 @@ async function sample($: $T): Promise<void> {
   const now = await $.clock.now()
   if (u.cost && u.cost.usd !== ccUsd) {
     ccUsd = u.cost.usd
-    await update($, ccA, () => ccUsd)
+    await update($, 'cc', () => ccUsd)
   }
   for (const w of u.rateLimits) recordLim($, now, w)
   $.ui.status(statusText())
@@ -258,7 +331,7 @@ async function computeContext($: $T): Promise<void> {
     readUsd: resend === null ? null : (resend * p.cr) / 1e6,
     writeUsd: resend === null ? null : (resend * p.in * 2) / 1e6,
   }
-  await update($, contextA, () => ctx)
+  await update($, 'context', () => ctx)
 }
 
 // ---------------------------------------------------------------- live turn (band)
@@ -274,7 +347,7 @@ async function pushLive($: $T): Promise<void> {
   if (!live) return
   const agents = [...liveAgents.values()].sort((a, b) => b.usd - a.usd).slice(0, 6)
   const copy: Live = { ...live, tok: [live.tok[0], live.tok[1], live.tok[2], live.tok[3]], agents: agents.map(a => ({ ...a })) }
-  await update($, liveA, () => copy)
+  await update($, 'live', () => copy)
 }
 
 // ---------------------------------------------------------------- idle cache
@@ -326,7 +399,7 @@ function idleLine(idle: Idle | null, now: number): { text: string; color?: strin
 }
 
 async function idleTick($: $T): Promise<void> {
-  const idle = await read($, idleA)
+  const idle = await read($, 'idle')
   if (!idle) return
   const now = await $.clock.now()
   const left = idle.at + opts.cacheMinutes * MIN - now
@@ -344,15 +417,15 @@ async function idleCompact($: $T, idle: Idle, now: number): Promise<void> {
   try {
     const r = await $.session.compact({ instructions: COMPACT_NOTE })
     if (r.skip !== undefined) {
-      await update($, idleA, i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
+      await update($, 'idle', i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
       return
     }
     const compacted = { before: r.tokensBefore ?? idle.ctx, after: r.tokensAfter ?? 0, at: now }
-    await update($, idleA, i => (i && i.at === idle.at ? { ...i, compacted } : i))
+    await update($, 'idle', i => (i && i.at === idle.at ? { ...i, compacted } : i))
   } catch (err) {
     // a turn started meanwhile, or the compaction failed: wait for the next request
     $.ui.log(`usage-meter: idle compaction did not run: ${String(err)}`, { to: 'debug' })
-    await update($, idleA, i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
+    await update($, 'idle', i => (i && i.at === idle.at ? { ...i, isSkipped: true } : i))
   } finally {
     isCompacting = false
     $.ui.invalidate('ui.render')
@@ -508,7 +581,7 @@ export const register: Register = (on, options) => {
         const isCodexLive = codexCalls > 0 || myRunningCodex() !== undefined
         if (isOpen || isCodexLive || tick % 15 === 0) await loadPulse($)
         if (isCodexLive || isOpen) $.ui.invalidate('ui.render')
-        if (isOpen && tick % 5 === 0 && (await read($, tabA)) === 'context') await computeContext($)
+        if (isOpen && tick % 5 === 0 && (await read($, 'tab')) === 'context') await computeContext($)
         if (tick % 2 === 0) await saveSamples($)
         await idleTick($)
       })()
@@ -577,7 +650,7 @@ export const register: Register = (on, options) => {
         if (!e.agentId) {
           const at = await $.clock.now()
           const ctx = u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
-          await update($, idleA, () => ({ at, ctx }))
+          await update($, 'idle', () => ({ at, ctx }))
         }
         await sample($)
       }
@@ -621,7 +694,7 @@ export const register: Register = (on, options) => {
   on('session.compact', async ($, e, next) => {
     const r = await next(e)
     if (!e.agentId && r.messages && (e.trigger === 'manual' || e.trigger === 'auto')) {
-      await update($, idleA, () => null).catch(() => undefined)
+      await update($, 'idle', () => null).catch(() => undefined)
     }
 
     return r
@@ -631,7 +704,7 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     if (e.cost && e.cost.usd !== ccUsd) {
       ccUsd = e.cost.usd
-      await update($, ccA, () => ccUsd)
+      await update($, 'cc', () => ccUsd)
     }
     for (const w of e.rateLimits) recordLim($, now, w)
     $.ui.status(statusText())
@@ -647,7 +720,7 @@ export const register: Register = (on, options) => {
       liveAgents.clear()
       sessionId = ''
       ccUsd = null
-      await update($, idleA, () => null)
+      await update($, 'idle', () => null)
     }
 
     return next(e)
@@ -657,14 +730,14 @@ export const register: Register = (on, options) => {
     if (!sessionId) sessionId = await $.session.id()
     const arg = e.args.trim()
     if (arg === 'band') {
-      const isHidden = await read($, hiddenA)
-      await update($, hiddenA, () => !isHidden)
+      const isHidden = await read($, 'isBandHidden')
+      await update($, 'isBandHidden', () => !isHidden)
       return { text: isHidden ? 'Band shown.' : 'Band hidden.' }
     }
     await Promise.all([loadView($), loadPulse($)])
-    if (arg === 'text') return { text: summaryText(await read($, viewA), await $.clock.now()) }
+    if (arg === 'text') return { text: summaryText(await read($, 'view'), await $.clock.now()) }
     const opened = await $.ui.open({ id: PANE, title: 'Usage' })
-    if (!opened.isPlaced) return { text: summaryText(await read($, viewA), await $.clock.now()) }
+    if (!opened.isPlaced) return { text: summaryText(await read($, 'view'), await $.clock.now()) }
 
     return {}
   })
@@ -672,16 +745,18 @@ export const register: Register = (on, options) => {
   // ---- the band above the prompt: this turn's burn, and Codex when it's running for this chat
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || (await read($, hiddenA))) return next(e)
-    const lv = await read($, liveA)
-    const p = await read($, pulseA)
+    if (e.props.hasSurvey || (await read($, 'isBandHidden'))) return next(e)
+    const lv = await read($, 'live')
+    const p = await read($, 'pulse')
     const run = p?.codex.runs.find(r => r.status === 'running' && r.parent?.sid === sessionId)
-    const v = await read($, viewA)
+    const v = await read($, 'view')
     const now = await $.clock.now()
-    const il = e.props.isWorking ? null : idleLine(await read($, idleA), now)
+    const il = e.props.isWorking ? null : idleLine(await read($, 'idle'), now)
     if (!lv && !run && !v && !il) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
-    const W = e.props.bodyColumns
+    // 2.1.280, the one build without $.state, hands the band the terminal's whole
+    // width and then draws its own [-] over the last three columns
+    const W = e.props.bodyColumns - (hasState === false ? 4 : 0)
 
     const idleRow = il ? (
       <Box flexDirection="row" width={W}>
@@ -716,7 +791,7 @@ export const register: Register = (on, options) => {
           </Box>
           <Button key="details" label="details" plain dimColor onPress={() => void $.ui.open({ id: PANE, title: 'Usage' })} />
           <Text> </Text>
-          <Button key="hide" label="hide" plain dimColor onPress={() => void update($, hiddenA, () => true)} />
+          <Button key="hide" label="hide" plain dimColor onPress={() => void update($, 'isBandHidden', () => true)} />
         </Box>
       )
     }
@@ -739,7 +814,7 @@ export const register: Register = (on, options) => {
             label="watch"
             plain
             dimColor
-            onPress={() => void update($, tabA, () => 'codex').then(() => $.ui.open({ id: PANE, title: 'Usage' }))}
+            onPress={() => void update($, 'tab', () => 'codex').then(() => $.ui.open({ id: PANE, title: 'Usage' }))}
           />
           {run.isSelf && <Text> </Text>}
           {run.isSelf && <Button key="codex-stop" label="stop" plain dimColor onPress={() => void stopCodex($, run)} />}
@@ -752,7 +827,7 @@ export const register: Register = (on, options) => {
     let meterRow: JSX.Element | null = null
     if (!turnRow && v) {
       const cw = p?.codex.limits?.primary
-      const cc = await read($, ccA)
+      const cc = await read($, 'cc')
       const parts = [
         ...v.windows.filter(w => w.kind === 'five_hour' || w.kind === 'seven_day').map(w => `${w.label} ${w.pct}%`),
         cw ? `Codex ${Math.round(cw.used_percent)}%` : '',
@@ -767,7 +842,7 @@ export const register: Register = (on, options) => {
           </Box>
           <Button key="details" label="open usage" plain dimColor onPress={() => void $.ui.open({ id: PANE, title: 'Usage' })} />
           <Text> </Text>
-          <Button key="hide" label="hide" plain dimColor onPress={() => void update($, hiddenA, () => true)} />
+          <Button key="hide" label="hide" plain dimColor onPress={() => void update($, 'isBandHidden', () => true)} />
         </Box>
       )
     }
@@ -789,7 +864,7 @@ export const register: Register = (on, options) => {
     // chosen by surface: the terminal draws no Svg and the mobile app no Select
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const Select = e.surface !== 'mobile' && 'Select' in els ? els.Select : undefined
-    const v = await read($, viewA)
+    const v = await read($, 'view')
     const W = Math.max(28, e.props.bodyColumns)
 
     if (!v) {
@@ -802,8 +877,8 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
-    const tab = await read($, tabA)
-    const scope = await read($, scopeA)
+    const tab = await read($, 'tab')
+    const scope = await read($, 'scope')
     const now = await $.clock.now()
 
     // ---- building blocks. Proportional fonts on the desktop: alignment comes
@@ -906,14 +981,14 @@ export const register: Register = (on, options) => {
     const usesScope = tab === 'threads' || tab === 'tasks' || tab === 'breakdown'
     // a long list shown in full folds back when the view or the scope changes
     const pickTab = (t: string) => {
-      void update($, allA, () => false)
-      void update($, tabA, () => t as Tab).then(() => (t === 'context' ? computeContext($) : loadView($)))
+      void update($, 'isAllShown', () => false)
+      void update($, 'tab', () => t as Tab).then(() => (t === 'context' ? computeContext($) : loadView($)))
     }
     const pickScope = (x: string) => {
-      void update($, allA, () => false)
-      void update($, scopeA, () => x as Scope)
+      void update($, 'isAllShown', () => false)
+      void update($, 'scope', () => x as Scope)
     }
-    const age = Math.max(0, now - Math.max(v.builtAt, (await read($, pulseA))?.at ?? 0))
+    const age = Math.max(0, now - Math.max(v.builtAt, (await read($, 'pulse'))?.at ?? 0))
     const refresh = (
       <Box flexDirection="row" flexShrink={0} marginLeft={1}>
         <Text dimColor>{age < 10_000 ? 'now ' : `${fmtDur(age)} ago `}</Text>
@@ -948,7 +1023,7 @@ export const register: Register = (on, options) => {
     )
 
     // ---- Codex's own plan limit, and the live sessions at a glance
-    const pl = await read($, pulseA)
+    const pl = await read($, 'pulse')
     const cl = pl?.codex.limits
     const cwLabel = (cw: CodexWindow) =>
       cw.window_minutes >= 10_000 ? 'week' : cw.window_minutes === 300 ? '5h' : `${Math.round(cw.window_minutes / 60)}h`
@@ -992,9 +1067,9 @@ export const register: Register = (on, options) => {
         </Box>
       ) : null
 
-    const mine = await read($, mineA)
+    const mine = await read($, 'mine')
     const scoped: ScopeView | null = scope === 'session' ? mine : scope === 'week' ? v.week : v.window
-    const cc = await read($, ccA)
+    const cc = await read($, 'cc')
     const mineUsd = mine?.usd ?? v.sessionUsd[sessionId] ?? null
     const ccCheck =
       cc === null || mineUsd === null
@@ -1088,10 +1163,10 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else if (tab === 'codex') {
-      const expanded = await read($, expandedA)
-      const isAll = await read($, allA)
+      const expanded = await read($, 'expanded')
+      const isAll = await read($, 'isAllShown')
       const toggle = (id: string) => () =>
-        void update($, expandedA, list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
+        void update($, 'expanded', list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
       const runs = pl?.codex.runs ?? []
       const recent = runs.filter(r => r.status !== 'running')
       const shown = isAll ? recent : recent.slice(0, 10)
@@ -1165,15 +1240,15 @@ export const register: Register = (on, options) => {
           })}
           {recent.length > shown.length && (
             <Box marginTop={1}>
-              <Button key="more" label={`Show ${recent.length - shown.length} more`} plain onPress={() => void update($, allA, () => true)} />
+              <Button key="more" label={`Show ${recent.length - shown.length} more`} plain onPress={() => void update($, 'isAllShown', () => true)} />
             </Box>
           )}
         </Box>
       )
     } else if (tab === 'threads') {
-      const expanded = await read($, expandedA)
+      const expanded = await read($, 'expanded')
       const toggle = (id: string) => () =>
-        void update($, expandedA, list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
+        void update($, 'expanded', list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
       const threads: ThreadRow[] = scoped?.threads ?? []
       body = (
         <Box flexDirection="column">
@@ -1232,7 +1307,7 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else if (tab === 'tasks') {
-      const isAll = await read($, allA)
+      const isAll = await read($, 'isAllShown')
       const tasks = scoped?.tasks ?? []
       const shown = isAll ? tasks : tasks.slice(0, 12)
       body = (
@@ -1246,7 +1321,7 @@ export const register: Register = (on, options) => {
           ))}
           {tasks.length > shown.length && (
             <Box marginTop={1}>
-              <Button key="more" label={`Show ${tasks.length - shown.length} more`} plain onPress={() => void update($, allA, () => true)} />
+              <Button key="more" label={`Show ${tasks.length - shown.length} more`} plain onPress={() => void update($, 'isAllShown', () => true)} />
             </Box>
           )}
         </Box>
@@ -1376,7 +1451,7 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else {
-      const c = await read($, contextA)
+      const c = await read($, 'context')
       body = !c ? (
         <Note text="Measuring the context window…" />
       ) : (
