@@ -2,6 +2,8 @@
 
 **See exactly where your Claude usage goes, live, inside Claude Code.**
 
+https://github.com/user-attachments/assets/bcb43cc6-a6dd-48e8-b80d-d9de9b03ba7b
+
 Hit a limit sooner than you expected and wondering whether it got nerfed? usage-meter
 shows your 5-hour and weekly plan limits as they move, what's using them (which session,
 subagent, prompt and model), how fast you're burning, and how much you have left in
