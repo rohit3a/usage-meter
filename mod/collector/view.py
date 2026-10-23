@@ -88,6 +88,20 @@ class Agg:
         if ts > self.last:
             self.last = ts
 
+    def merge(self, b: "Agg") -> None:
+        self.p5 += b.p5
+        self.p7 += b.p7
+        self.usd += b.usd
+        self.i += b.i
+        self.o += b.o
+        self.cr += b.cr
+        self.cw += b.cw
+        self.reqs += b.reqs
+        if b.first and (not self.first or b.first < self.first):
+            self.first = b.first
+        if b.last > self.last:
+            self.last = b.last
+
     def tok(self) -> list:
         return [self.i, self.o, self.cr, self.cw]
 
@@ -126,7 +140,11 @@ class Entry:
 
 
 class Scope:
-    """Every breakdown of one span of requests."""
+    """Every breakdown of one span of requests.
+
+    add() sums each request into one Agg per distinct context (session, prompt,
+    agent, model, ...); finish() then fans those out to every breakdown, so a
+    request costs one Agg update instead of a dozen."""
 
     def __init__(self) -> None:
         self.total = Agg()
@@ -135,32 +153,42 @@ class Scope:
         self.sessions: dict = {}
         self.tasks: dict = {}
         self.dims = {k: {} for k in ("projects", "models", "effort", "agents", "skills", "mcp", "machines")}
+        self.by_ctx: dict = {}
 
     def add(self, ts, usd, r, ctx, pts=(0.0, 0.0)) -> None:
-        sid, pid, aid, model, effort, skill, mcp, project, machine = ctx
-        self.total.add(ts, usd, r, pts)
+        a = self.by_ctx.get(ctx)
+        if a is None:
+            a = self.by_ctx[ctx] = Agg()
+        a.add(ts, usd, r, pts)
         if r[8] + r[9] >= REBUILD_TOKENS:
             self.rebuilds += 1
             self.rebuild_usd += usd
-        s = self.sessions.get(sid)
-        if s is None:
-            s = self.sessions[sid] = {"all": Agg(), "main": Agg(), "agents": {}, "tasks": {}}
-        s["all"].add(ts, usd, r, pts)
-        if aid:
-            bucket(s["agents"], aid).add(ts, usd, r, pts)
-        else:
-            s["main"].add(ts, usd, r, pts)
-        bucket(s["tasks"], pid).add(ts, usd, r, pts)
-        bucket(self.tasks, (sid, pid)).add(ts, usd, r, pts)
+
+    def finish(self) -> "Scope":
         d = self.dims
-        bucket(d["projects"], project).add(ts, usd, r, pts)
-        bucket(d["models"], model).add(ts, usd, r, pts)
-        bucket(d["effort"], effort or "default").add(ts, usd, r, pts)
-        if skill:
-            bucket(d["skills"], skill).add(ts, usd, r, pts)
-        if mcp:
-            bucket(d["mcp"], mcp).add(ts, usd, r, pts)
-        bucket(d["machines"], machine).add(ts, usd, r, pts)
+        for ctx, a in self.by_ctx.items():
+            sid, pid, aid, model, effort, skill, mcp, project, machine = ctx
+            self.total.merge(a)
+            s = self.sessions.get(sid)
+            if s is None:
+                s = self.sessions[sid] = {"all": Agg(), "main": Agg(), "agents": {}, "tasks": {}}
+            s["all"].merge(a)
+            if aid:
+                bucket(s["agents"], aid).merge(a)
+            else:
+                s["main"].merge(a)
+            bucket(s["tasks"], pid).merge(a)
+            bucket(self.tasks, (sid, pid)).merge(a)
+            bucket(d["projects"], project).merge(a)
+            bucket(d["models"], model).merge(a)
+            bucket(d["effort"], effort or "default").merge(a)
+            if skill:
+                bucket(d["skills"], skill).merge(a)
+            if mcp:
+                bucket(d["mcp"], mcp).merge(a)
+            bucket(d["machines"], machine).merge(a)
+        self.by_ctx = {}
+        return self
 
 
 class ViewBuilder:
@@ -370,6 +398,7 @@ class ViewBuilder:
             return (e.plan[i] * k5[f] if k5 else 0.0, e.plan[i] * k7[f] if k7 else 0.0)
 
         # 3) every breakdown, with each request's share of the limits
+        places: dict = {}  # (session, file's host) -> (machine, project)
         for e in entries:
             if e.doc.get("day", "") < row_from_day:
                 continue
@@ -384,9 +413,12 @@ class ViewBuilder:
                     continue
                 usd = e.usd[i]
                 sid = S[r[1]]
-                meta = sessions_meta.get(sid) or {}
-                machine = f"{meta.get('host', e.host)} (remote)" if meta.get("remote") else meta.get("host", e.host)
-                project = project_of(meta.get("cwd", ""), self.home)
+                place = places.get((sid, e.host))
+                if place is None:
+                    meta = sessions_meta.get(sid) or {}
+                    machine = f"{meta.get('host', e.host)} (remote)" if meta.get("remote") else meta.get("host", e.host)
+                    place = places[(sid, e.host)] = (machine, project_of(meta.get("cwd", ""), self.home))
+                machine, project = place
                 model_id = M[r[4]] if r[4] < len(M) else ""
                 pid = P[r[2]] if r[2] >= 0 else ""
                 aid = A[r[3]] if r[3] >= 0 else ""
@@ -405,7 +437,7 @@ class ViewBuilder:
                 if a is None or ts > a:
                     active[sid] = ts
         for scope in (w5, w7):
-            self.fix_agent_types(scope, agents)
+            self.fix_agent_types(scope.finish(), agents)
 
         # sessions active in the last 6 hours get a detail file of their own
         recent = [sid for sid, last in active.items() if last >= now - 6 * HOUR]
@@ -440,7 +472,7 @@ class ViewBuilder:
                         scope = sess_scopes[sid] = Scope()
                     scope.add(r[0], e.usd[i], r, ctx, pts(e, i))
             for scope in sess_scopes.values():
-                self.fix_agent_types(scope, agents)
+                self.fix_agent_types(scope.finish(), agents)
         r5, r7 = k5 is not None, k7 is not None
 
         # typical session size over the last 7 days, for the remaining-budget line

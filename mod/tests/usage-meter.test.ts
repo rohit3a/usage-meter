@@ -153,8 +153,17 @@ function files(selfAge = 2000): Files {
   return f
 }
 
-function world(on: On, f: Files, reads: string[] = []) {
+/** What the mod's `umeter.py install --if-needed` call answers, and what it was asked. */
+type SetupWorld = { answer?: Record<string, unknown> | Error; calls: string[][]; toasts: string[] }
+
+function world(on: On, f: Files, reads: string[] = [], setup: SetupWorld = { calls: [], toasts: [] }) {
   const clock = mock.clock(on, { now: T0 })
+  on('process.run', ($, e) => {
+    setup.calls.push([...e.argv])
+    if (setup.answer instanceof Error) throw setup.answer
+    const out = JSON.stringify(setup.answer ?? { action: 'ok', service: 'systemd', stamp: 'abc' })
+    return { value: { exitCode: 0, stdout: `${out}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   mock.env(on, { HOME: '/home/t' })
   on('session.id', () => ({ value: 'sess-1' }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
@@ -202,7 +211,10 @@ function world(on: On, f: Files, reads: string[] = []) {
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.log', () => ({ value: undefined }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', ($, e) => {
+    setup.toasts.push(JSON.stringify(e))
+    return { value: undefined }
+  })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'usage-meter', title: 'Usage', isShown: true, isFocused: false, isPlaced: true }] }) as never)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -487,7 +499,7 @@ async function bandTexts($: Engine): Promise<string[]> {
 // there; that kit has no mock.session either, which is how this file tells them apart
 const hasTestOptions = 'session' in mock
 
-if (hasTestOptions) test('idle: counts down to the cache expiring, then compacts 5 minutes before', { options: { idleCompact: true, idleCompactMinTokens: 100_000 } }, async ($, on) => {
+if (hasTestOptions) test('idle: counts down to the cache expiring, then compacts 5 minutes before', { options: { idleCompact: true, idleCompactMinTokens: 100_000 }, timeoutMs: 20_000 }, async ($, on) => {
   const clock = world(on, files())
   const compacts: unknown[] = []
   on('session.compact', ($, e) => {
@@ -508,7 +520,7 @@ if (hasTestOptions) test('idle: counts down to the cache expiring, then compacts
   expect(compacts.length).toBe(1)
 })
 
-test('idle: with compaction off, says when the cache expired; small contexts are left alone', { options: { idleCompactMinTokens: 100_000 } }, async ($, on) => {
+test('idle: with compaction off, says when the cache expired; small contexts are left alone', { options: { idleCompactMinTokens: 100_000 }, timeoutMs: 20_000 }, async ($, on) => {
   const clock = world(on, files())
   const compacts: unknown[] = []
   on('session.compact', ($, e) => {
@@ -521,4 +533,65 @@ test('idle: with compaction off, says when the cache expired; small contexts are
   await clock.advance(10 * MIN)
   expect(missing(await bandTexts($), ['◷ cache expired 2m ago · your next message re-caches 106k context'])).toEqual([])
   expect(compacts.length).toBe(0)
+})
+
+// ---- setup: the collector ships in the plugin and the mod starts it
+
+test('first session sets the collector up and says so; it runs from the plugin', async ($, on) => {
+  const setup: SetupWorld = { answer: { action: 'installed', service: 'systemd', stamp: 'abc' }, calls: [], toasts: [] }
+  const clock = world(on, files(), [], setup)
+  await $.session.start({ cwd: '/home/t/proj', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  expect(setup.calls.length).toBe(1)
+  const [py = '', script = '', ...args] = setup.calls[0] ?? []
+  expect(py).toBe('python3')
+  expect(script.endsWith('/collector/umeter.py')).toBe(true)
+  expect(args).toEqual(['install', '--if-needed', '--json'])
+  expect(setup.toasts.some(t => t.includes('usage-meter is set up'))).toBe(true)
+})
+
+test('an up-to-date collector is only checked: no toast', async ($, on) => {
+  const setup: SetupWorld = { calls: [], toasts: [] }
+  const clock = world(on, files(), [], setup)
+  await $.session.start({ cwd: '/home/t/proj', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  expect(setup.calls.length).toBe(1)
+  expect(setup.toasts.length).toBe(0)
+})
+
+test('no Python: the pane says why instead of waiting forever', async ($, on) => {
+  const f = files()
+  f.delete(`${ROOT}/local/view.json`)
+  const setup: SetupWorld = { answer: new Error('spawn python3 ENOENT'), calls: [], toasts: [] }
+  const clock = world(on, f, [], setup)
+  await open($, clock)
+  expect(setup.calls.map(c => c[0])).toEqual(['python3', 'python'])
+  expect(setup.toasts.some(t => t.includes("couldn't start its collector"))).toBe(true)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(missing(await texts(ui), ['The collector isn’t running', /Needs Python 3\.9 or later/, /\/burn setup/])).toEqual([])
+  await ui.unmount()
+})
+
+test('/burn uninstall stops the collector, /burn setup brings it back', async ($, on) => {
+  const setup: SetupWorld = { calls: [], toasts: [] }
+  const clock = world(on, files(), [], setup)
+  await $.session.start({ cwd: '/home/t/proj', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  const burn = (args: string) => $.command.run({ command: 'burn', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } } as never)
+  setup.answer = { action: 'uninstalled', message: 'Your usage history is still in /home/t/.claude/usage-meter.' }
+  const off = (await burn('uninstall')) as { text?: string }
+  expect(setup.calls.at(-1)?.slice(2)).toEqual(['uninstall', '--json'])
+  expect(off.text).toBe('The collector is stopped and removed. Your usage history is still in /home/t/.claude/usage-meter.')
+  setup.answer = { action: 'installed', service: 'launchd' }
+  const back = (await burn('setup')) as { text?: string }
+  expect(setup.calls.at(-1)?.slice(2)).toEqual(['install', '--json'])
+  expect(back.text).toBe('The collector is set up and running in the background (launchd service).')
+})
+
+if (hasTestOptions) test('autoStart off: the mod never runs the installer by itself', { options: { autoStart: false } }, async ($, on) => {
+  const setup: SetupWorld = { calls: [], toasts: [] }
+  const clock = world(on, files(), [], setup)
+  await $.session.start({ cwd: '/home/t/proj', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  expect(setup.calls.length).toBe(0)
 })

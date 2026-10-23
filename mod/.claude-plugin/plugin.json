@@ -1,7 +1,7 @@
 {
   "name": "usage-meter",
-  "version": "0.3.1",
-  "description": "Live view of where every token goes: plan limit %, tokens and API-equivalent $, by machine, thread, subagent, task and model",
+  "version": "0.4.0",
+  "description": "See where every Claude token goes, live: plan-limit % used and left, burn rate, tokens and API-equivalent $, by session, subagent, model and machine",
   "author": {
     "name": "rohit3a",
     "url": "https://github.com/rohit3a"
@@ -10,6 +10,12 @@
   "repository": "https://github.com/rohit3a/usage-meter",
   "license": "MIT",
   "userConfig": {
+    "autoStart": {
+      "type": "boolean",
+      "title": "Start the collector automatically",
+      "description": "Each session start checks that the background collector (the part that reads your transcripts and does the math) is running and on this version, and sets it up if not. Off: run /burn setup yourself.",
+      "default": true
+    },
     "cacheCountdown": {
       "type": "boolean",
       "title": "Cache countdown",
@@ -34,5 +40,15 @@
       "description": "How long the main thread's prompt cache lives after its last request: 60 for Claude Code on a subscription, 5 where only the 5-minute cache is used.",
       "default": 60
     }
-  }
+  },
+  "keywords": [
+    "usage",
+    "limits",
+    "rate-limit",
+    "tokens",
+    "cost",
+    "monitoring",
+    "status-line",
+    "codex"
+  ]
 }

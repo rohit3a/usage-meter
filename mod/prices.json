@@ -72,6 +72,20 @@
       0.5
     ],
     [
+      "claude-opus-4-1",
+      "Opus 4.1",
+      15,
+      75,
+      1.5
+    ],
+    [
+      "claude-opus-4",
+      "Opus 4",
+      15,
+      75,
+      1.5
+    ],
+    [
       "claude-sonnet-5-5",
       "Sonnet 5.5",
       2,
@@ -100,6 +114,27 @@
       0.3
     ],
     [
+      "claude-sonnet-4",
+      "Sonnet 4",
+      3,
+      15,
+      0.3
+    ],
+    [
+      "claude-3-7-sonnet",
+      "Sonnet 3.7",
+      3,
+      15,
+      0.3
+    ],
+    [
+      "claude-3-5-sonnet",
+      "Sonnet 3.5",
+      3,
+      15,
+      0.3
+    ],
+    [
       "claude-haiku-5-5",
       "Haiku 5.5",
       0.1,
@@ -112,6 +147,13 @@
       1,
       5,
       0.1
+    ],
+    [
+      "claude-3-5-haiku",
+      "Haiku 3.5",
+      0.8,
+      4,
+      0.08
     ]
   ],
   "columns": [
@@ -125,7 +167,8 @@
   "cacheWrite1h": 2.0,
   "fast": {
     "claude-opus-5-5": 2,
-    "claude-opus-5": 2
+    "claude-opus-5": 2,
+    "claude-opus-4-8": 2
   },
   "webSearchUsd": 0.01,
   "fallback": "claude-opus-5-5",

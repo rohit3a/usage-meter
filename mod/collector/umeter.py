@@ -46,7 +46,7 @@ HOME = os.path.expanduser("~")
 ROOT = os.path.join(HOME, ".claude", "usage-meter")
 PROJECTS = os.path.join(HOME, ".claude", "projects")
 HERE = os.path.dirname(os.path.abspath(__file__))
-PRICES_PATH = os.path.join(HERE, "..", "mod", "prices.json")
+PRICES_PATH = os.path.join(HERE, "..", "prices.json")
 KEEP_DAYS = 35
 LIMIT_DAYS = 9
 SCAN_SECONDS = 3
@@ -777,12 +777,16 @@ def write_status(c: Collector, s: Syncer | None, sub: str, started: int) -> None
 
 def run(once: bool = False) -> None:
     os.makedirs(os.path.join(ROOT, "local"), exist_ok=True)
-    lock = open(os.path.join(ROOT, "local", "collector.lock"), "w")
+    lock = open(os.path.join(ROOT, "local", "collector.lock"), "a+")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         log("another collector is already running")
         sys.exit(0 if once else 1)
+    # the pid lets setup.py stop a collector no service manager owns
+    lock.truncate(0)
+    lock.write(str(os.getpid()))
+    lock.flush()
     cfg = local_config()
     c = Collector(cfg)
     s = Syncer(cfg) if cfg.get("peers") else None
@@ -1053,11 +1057,37 @@ def main() -> None:
     r.add_argument("--hours", type=float, default=5)
     r.add_argument("--days", type=int, default=8)
     r.add_argument("--session", default="")
+    i = sub.add_parser("install", help="run the collector as a background service, on this checkout's code")
+    i.add_argument("--if-needed", action="store_true", help="do nothing while a collector on the same code is running")
+    u = sub.add_parser("uninstall", help="stop and remove the background service (keeps your data)")
+    st = sub.add_parser("status", help="whether the collector is running and up to date")
+    cf = sub.add_parser("config", help="name this machine and the machines it syncs with, over SSH")
+    cf.add_argument("--host", default="", help="this machine's name in the meter, e.g. Desktop")
+    cf.add_argument("--peer", action="append", default=[], help="NAME=SSH-HOST of another machine (repeat); replaces the list")
+    for p in (i, u, st, cf):
+        p.add_argument("--json", action="store_true", help="one line of JSON, for the mod")
     args = ap.parse_args()
     if args.cmd == "run":
         run()
     elif args.cmd == "once":
         run(once=True)
+    elif args.cmd in ("install", "uninstall", "status", "config"):
+        import service
+
+        try:
+            if args.cmd == "install":
+                out = service.install(args.if_needed)
+            elif args.cmd == "config":
+                out = service.configure(args.host, args.peer)
+            else:
+                out = getattr(service, args.cmd)()
+        except Exception as err:
+            out = {"action": "failed", "message": str(err)[:400]}
+        if args.json:
+            print(json.dumps(out))
+        else:
+            print("\n".join(f"{k}: {v}" for k, v in out.items()))
+        sys.exit(1 if out.get("action") == "failed" else 0)
     else:
         report(args)
 
