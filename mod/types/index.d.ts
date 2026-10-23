@@ -210,6 +210,13 @@ export type Idle = {
   isSkipped?: boolean
 }
 
+/** What `umeter.py install` answered at session start (or /burn setup). */
+export type Setup = {
+  action: 'ok' | 'installed' | 'updated' | 'started' | 'disabled' | 'uninstalled' | 'failed'
+  service?: 'systemd' | 'launchd' | 'process'
+  message?: string
+}
+
 export type Tab = 'overview' | 'sessions' | 'codex' | 'threads' | 'tasks' | 'breakdown' | 'history' | 'accuracy' | 'context'
 export type Scope = 'session' | 'window' | 'week'
 
@@ -228,6 +235,7 @@ declare module 'claude-code' {
       isAllShown: boolean
       isBandHidden: boolean
       idle: Idle | null
+      setup: Setup | null
     }
   }
 }

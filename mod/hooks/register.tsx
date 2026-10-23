@@ -11,6 +11,7 @@ import type {
   Pulse,
   Scope,
   ScopeView,
+  Setup,
   Tab,
   ThreadRow,
   Tokens,
@@ -45,7 +46,7 @@ const HOST_COLORS = ['#58a6ff', '#bc8cff', '#3fb950', '#d29922', '#8b949e']
 type Values = PluginState['usage-meter']
 type Key = keyof Values
 const INITIAL: Values = {
-  view: null, pulse: null, mine: null, context: null, cc: null, live: null, tab: 'overview', scope: 'window', expanded: [], isAllShown: false, isBandHidden: false, idle: null,
+  view: null, pulse: null, mine: null, context: null, cc: null, live: null, tab: 'overview', scope: 'window', expanded: [], isAllShown: false, isBandHidden: false, idle: null, setup: null,
 }
 // undefined until the first read finds out
 let hasState: boolean | undefined
@@ -67,6 +68,7 @@ function hostGet($: $T, key: Key): Promise<{ value: unknown; version: number }> 
     case 'isAllShown': return $.state.get({ plugin: 'usage-meter', key: 'isAllShown' })
     case 'isBandHidden': return $.state.get({ plugin: 'usage-meter', key: 'isBandHidden' })
     case 'idle': return $.state.get({ plugin: 'usage-meter', key: 'idle' })
+    case 'setup': return $.state.get({ plugin: 'usage-meter', key: 'setup' })
   }
 }
 
@@ -85,6 +87,7 @@ function hostSet($: $T, key: Key, value: unknown, ifVersion: number): Promise<{ 
     case 'isAllShown': return $.state.set({ plugin: 'usage-meter', key: 'isAllShown' }, value as Values['isAllShown'], at)
     case 'isBandHidden': return $.state.set({ plugin: 'usage-meter', key: 'isBandHidden' }, value as Values['isBandHidden'], at)
     case 'idle': return $.state.set({ plugin: 'usage-meter', key: 'idle' }, value as Values['idle'], at)
+    case 'setup': return $.state.set({ plugin: 'usage-meter', key: 'setup' }, value as Values['setup'], at)
   }
 }
 
@@ -359,8 +362,8 @@ async function pushLive($: $T): Promise<void> {
 // before it lapses, while the cache still serves the read: the next message
 // then writes the short summary instead of the whole conversation.
 
-type Opts = { idleCompact: boolean; idleCompactMinTokens: number; cacheMinutes: number; cacheCountdown: boolean }
-const DEFAULTS: Opts = { idleCompact: false, idleCompactMinTokens: 150_000, cacheMinutes: 60, cacheCountdown: true }
+type Opts = { autoStart: boolean; idleCompact: boolean; idleCompactMinTokens: number; cacheMinutes: number; cacheCountdown: boolean }
+const DEFAULTS: Opts = { autoStart: true, idleCompact: false, idleCompactMinTokens: 150_000, cacheMinutes: 60, cacheCountdown: true }
 const MIN = 60_000
 const COUNTDOWN_AFTER = 10 * MIN
 const COMPACT_LEAD = 5 * MIN
@@ -557,6 +560,63 @@ function summaryText(v: View | null, now: number): string {
   return lines.join('\n')
 }
 
+// ---------------------------------------------------------------- setup
+
+// The collector ships inside the plugin. `install --if-needed` copies it to
+// ~/.claude/usage-meter/app, runs it as a service and restarts it when the
+// plugin's code changed; while a collector on this code runs it only checks
+// (a fraction of a second, off the session's path).
+
+const PYTHONS = ['python3', 'python']
+
+async function runSetup($: $T, args: string[]): Promise<Setup> {
+  const script = `${$.plugin.root}/collector/umeter.py`
+  let missing = ''
+  for (const py of PYTHONS) {
+    try {
+      const r = await $.process.run([py, script, ...args, '--json'], { timeoutMs: 90_000 })
+      const line = r.stdout.trim().split('\n').pop() ?? ''
+      try {
+        return JSON.parse(line) as Setup
+      } catch {
+        return { action: 'failed', message: (r.stderr || r.stdout || `${py} exited ${r.exitCode}`).trim().slice(-400) }
+      }
+    } catch (err) {
+      missing = String(err)
+    }
+  }
+  return { action: 'failed', message: `Needs Python 3.9 or later on PATH (${missing.slice(0, 160)})` }
+}
+
+const SETUP_TOAST: Partial<Record<Setup['action'], string>> = {
+  installed: 'usage-meter is set up: its collector now runs in the background. Type /burn to see your usage.',
+  failed: "usage-meter couldn't start its collector. /burn shows why.",
+}
+
+async function ensureCollector($: $T, args = ['install', '--if-needed']): Promise<Setup> {
+  const result = await runSetup($, args)
+  await update($, 'setup', () => result)
+  const toast = SETUP_TOAST[result.action]
+  if (toast && args.includes('--if-needed')) $.ui.toast(toast)
+  if (result.action === 'installed' || result.action === 'updated' || result.action === 'started') await refreshNow($)
+  return result
+}
+
+const SETUP_TEXT: Record<Setup['action'], string> = {
+  ok: 'The collector is running and up to date.',
+  installed: 'The collector is set up and running in the background.',
+  updated: 'The collector is updated and running.',
+  started: 'The collector is running again.',
+  disabled: 'Auto-start is off. /burn setup turns it back on.',
+  uninstalled: 'The collector is stopped and removed.',
+  failed: "The collector couldn't start.",
+}
+
+function setupText(s: Setup): string {
+  const how = s.service ? ` (${s.service === 'process' ? 'background process' : `${s.service} service`})` : ''
+  return `${SETUP_TEXT[s.action].replace(/\.$/, '')}${how}.${s.message ? ` ${s.message}` : ''}`
+}
+
 // ---------------------------------------------------------------- hooks
 
 export const register: Register = (on, options) => {
@@ -568,7 +628,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'burn',
       description: 'Usage meter: plan limits, budget left, and where every token went',
-      argumentHint: '[text|band]',
+      argumentHint: '[text|band|setup|uninstall]',
       immediate: true,
     })
     // Cheap: a stat or two. Reads view.json only when the collector rewrote it.
@@ -587,6 +647,7 @@ export const register: Register = (on, options) => {
       })()
     })
     void sample($).then(() => Promise.all([loadView($), loadPulse($)]))
+    if (opts.autoStart) void ensureCollector($)
 
     return next(e)
   })
@@ -604,15 +665,20 @@ export const register: Register = (on, options) => {
 
   on('agent.spawn', async ($, e, next) => {
     const r = await next(e)
-    if (r.agentId) {
-      const turn = (e.parentAgentId ? agentTurn.get(e.parentAgentId) : undefined) ?? mainTurn
-      agentTurn.set(r.agentId, turn)
-      const label = e.description ? `${e.subagentType}: ${e.description}` : e.subagentType || 'subagent'
-      agentLabel.set(r.agentId, label)
-      if (turn === liveTurn && live) {
-        liveAgents.set(r.agentId, { label, usd: 0, isRunning: true })
-        await pushLive($)
+    // the subagent has started: bookkeeping that fails here must not fail the spawn
+    try {
+      if (r.agentId) {
+        const turn = (e.parentAgentId ? agentTurn.get(e.parentAgentId) : undefined) ?? mainTurn
+        agentTurn.set(r.agentId, turn)
+        const label = e.description ? `${e.subagentType}: ${e.description}` : e.subagentType || 'subagent'
+        agentLabel.set(r.agentId, label)
+        if (turn === liveTurn && live) {
+          liveAgents.set(r.agentId, { label, usd: 0, isRunning: true })
+          await pushLive($)
+        }
       }
+    } catch {
+      // the band misses this subagent's live cost; the collector still counts it
     }
 
     return r
@@ -729,6 +795,10 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'burn' }, async ($, e) => {
     if (!sessionId) sessionId = await $.session.id()
     const arg = e.args.trim()
+    if (arg === 'setup' || arg === 'uninstall') {
+      const result = await ensureCollector($, arg === 'setup' ? ['install'] : ['uninstall'])
+      return { text: setupText(result) }
+    }
     if (arg === 'band') {
       const isHidden = await read($, 'isBandHidden')
       await update($, 'isBandHidden', () => !isHidden)
@@ -867,13 +937,17 @@ export const register: Register = (on, options) => {
     const v = await read($, 'view')
     const W = Math.max(28, e.props.bodyColumns)
 
+    const setup = await read($, 'setup')
     if (!v) {
+      const isFailed = setup?.action === 'failed'
+      const text = isFailed || setup?.action === 'disabled' || setup?.action === 'uninstalled'
+        ? setupText(setup)
+        : 'Waiting for the collector’s first summary: a few seconds, or up to a minute while it reads your past sessions.'
       return (
         <Box flexDirection="column" width={W}>
-          <Text bold>Starting up</Text>
-          <Text dimColor wrap="wrap">
-            Waiting for the collector's first summary. If this stays, the collector isn't running: see the README at github.com/rohit3a/usage-meter.
-          </Text>
+          <Text bold color={isFailed ? 'red' : undefined}>{isFailed ? 'The collector isn’t running' : 'Starting up'}</Text>
+          <Text dimColor wrap="wrap">{text}</Text>
+          {isFailed && <Text dimColor wrap="wrap">Try /burn setup, or see github.com/rohit3a/usage-meter#troubleshooting</Text>}
         </Box>
       )
     }
@@ -1486,7 +1560,13 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column" width={W}>
-        {isStale && <Note text="⚠ The collector on this machine has stopped; numbers are stale." color="red" wrap />}
+        {isStale && (
+          <Note
+            text={`⚠ The collector on this machine has stopped; numbers are stale. ${setup?.action === 'failed' ? setupText(setup) : 'Run /burn setup to restart it.'}`}
+            color="red"
+            wrap
+          />
+        )}
         {limits}
         {codexHeader}
         {fleetSummary}

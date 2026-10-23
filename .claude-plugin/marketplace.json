@@ -1,0 +1,34 @@
+{
+  "name": "usage-meter",
+  "owner": {
+    "name": "rohit3a",
+    "url": "https://github.com/rohit3a"
+  },
+  "metadata": {
+    "description": "usage-meter: a live Claude Code usage meter (plan limits, burn rate, tokens and $)"
+  },
+  "plugins": [
+    {
+      "name": "usage-meter",
+      "source": "./mod",
+      "description": "See where every Claude token goes, live: plan-limit % used and left, burn rate, tokens and API-equivalent $, by session, subagent, model and machine",
+      "version": "0.4.0",
+      "author": {
+        "name": "rohit3a",
+        "url": "https://github.com/rohit3a"
+      },
+      "homepage": "https://github.com/rohit3a/usage-meter",
+      "license": "MIT",
+      "keywords": [
+        "usage",
+        "limits",
+        "rate-limit",
+        "tokens",
+        "cost",
+        "monitoring",
+        "status-line",
+        "codex"
+      ]
+    }
+  ]
+}
