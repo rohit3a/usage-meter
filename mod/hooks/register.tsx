@@ -134,7 +134,8 @@ let mineMtime = -1
 let mineFor = ''
 
 async function initPaths($: $T): Promise<void> {
-  if (!root) root = `${(await $.env.get('HOME')) ?? '.'}/.claude/usage-meter`
+  // Windows sets USERPROFILE, usually not HOME
+  if (!root) root = `${(await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || '.'}/.claude/usage-meter`
 }
 
 async function mtimeOf($: $T, path: string): Promise<number | null> {
