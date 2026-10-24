@@ -9,6 +9,7 @@ import bisect
 import datetime as dt
 import json
 import os
+import re
 import statistics
 import time
 
@@ -56,7 +57,7 @@ def local_date(ms: int) -> str:
 def project_of(cwd: str, home: str) -> str:
     if not cwd:
         return "?"
-    root = cwd.split("/.claude/worktrees/")[0].rstrip("/")
+    root = re.split(r"[\\/]\.claude[\\/]worktrees[\\/]", cwd)[0].rstrip("/\\")  # Windows cwds use backslashes
     if root in ("", home):
         return "~ (home)"
     return os.path.basename(root) or root
@@ -790,7 +791,7 @@ class ViewBuilder:
             top = sorted(day["projects"].items(), key=lambda kv: -kv[1])[:3]
             out.append({
                 "date": key,
-                "label": d.strftime("%a %-d"),
+                "label": f"{d.strftime('%a')} {d.day}",  # %-d is glibc/BSD only
                 "hosts": {h: round(u, 2) for h, u in sorted(day["hosts"].items())},
                 "total": round(sum(day["hosts"].values()), 2),
                 "top": [[p, round(u, 2)] for p, u in top],
