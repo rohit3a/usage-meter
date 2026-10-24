@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import fcntl
 import fnmatch
 import json
 import os
@@ -39,6 +38,7 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import live as livemod  # noqa: E402
+import oscompat  # noqa: E402
 import view as viewmod  # noqa: E402
 
 VERSION = 4  # bump to rebuild every ledger from the transcripts
@@ -779,7 +779,7 @@ def run(once: bool = False) -> None:
     os.makedirs(os.path.join(ROOT, "local"), exist_ok=True)
     lock = open(os.path.join(ROOT, "local", "collector.lock"), "a+")
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        oscompat.lock(lock, blocking=False)
     except OSError:
         log("another collector is already running")
         sys.exit(0 if once else 1)

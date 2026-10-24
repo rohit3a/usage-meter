@@ -43,11 +43,11 @@ enter `rohit3a/usage-meter`, then add **usage-meter**.
 
 That's all. On the first session start the mod sets up its collector, a small Python process
 that reads your transcripts and does the math, as a background service (systemd on Linux,
-launchd on macOS), and tells you it did. It reads your existing history right away, so the
+launchd on macOS, a detached process on Windows), and tells you it did. It reads your existing history right away, so the
 numbers aren't empty on day one. When the plugin updates, the collector updates with it.
 
 **Needs:** Claude Code 2.1.280 or later, Python 3.9+ (`python3`; macOS has it with the
-Xcode command line tools), macOS or Linux (WSL included). Some older builds (2.1.280 among them) keep mods behind a
+Xcode command line tools; on Windows `python` is enough), macOS, Linux (WSL included) or Windows. Some older builds (2.1.280 among them) keep mods behind a
 switch: add `"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"` to the `env` block of `~/.claude/settings.json`.
 
 <details>
@@ -94,6 +94,9 @@ python3 ~/.claude/usage-meter/app/collector/umeter.py config --host Laptop      
 
 Each machine pushes its own ledger and pulls the others' every 20 seconds. The pane's footer
 shows each machine as live, a time since its last sync, or offline.
+
+On Windows, sync needs `rsync` on PATH (Windows doesn't ship it), and the Codex Stop button
+is not supported: the collector can't find which process writes a Codex run there.
 
 ### Idle cache countdown and compaction
 

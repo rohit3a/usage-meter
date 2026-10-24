@@ -23,6 +23,8 @@ import subprocess
 import sys
 import time
 
+import oscompat
+
 HOME = os.path.expanduser("~")
 CODEX_DIR = os.path.join(HOME, ".codex", "sessions")
 SESSIONS_DIR = os.path.join(HOME, ".claude", "sessions")
@@ -56,7 +58,7 @@ def project_of(cwd: str) -> str:
     if not cwd:
         return "?"
     cwd = cwd.replace("file://", "")
-    root = cwd.split("/.claude/worktrees/")[0].rstrip("/")
+    root = re.split(r"[\\/]\.claude[\\/]worktrees[\\/]", cwd)[0].rstrip("/\\")
     if root in ("", HOME):
         return "~ (home)"
     return os.path.basename(root) or root
@@ -422,16 +424,6 @@ def tool_summary(name: str, inp: dict) -> str:
     return name
 
 
-def alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-
-
 class FleetReader:
     def __init__(self, host: str) -> None:
         self.host = host
@@ -441,7 +433,7 @@ class FleetReader:
         out = []
         for path in glob.glob(os.path.join(SESSIONS_DIR, "*.json")):
             s = load_json(path, None)
-            if not s or not s.get("sessionId") or not s.get("pid") or not alive(int(s["pid"])):
+            if not s or not s.get("sessionId") or not s.get("pid") or not oscompat.alive(int(s["pid"])):
                 continue
             sid = s["sessionId"]
             entry = {
