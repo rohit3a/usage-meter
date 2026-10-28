@@ -92,6 +92,15 @@ def make_home(home: str) -> None:
     with open(os.path.join(sub, "agent-abc123.meta.json"), "w") as f:
         json.dump({"agentType": "Explore", "description": "find callers"}, f)
 
+    # a session whose folder was renamed between two days: the newer folder names its project
+    c = "cccccccc-0000-0000-0000-000000000003"
+    write_jsonl(os.path.join(projects, "-code-gamma", f"{c}.jsonl"), [
+        user(T0 - 26 * HOUR, c, f"{home}/code/gamma-old", "Gamma before the rename", "p-c-1"),
+        assistant(T0 - 26 * HOUR + 60_000, c, f"{home}/code/gamma-old", "msg_c1", "claude-sonnet-5-5", o=400),
+        user(T0 - HOUR, c, f"{home}/code/gamma", "Gamma after the rename", "p-c-0"),
+        assistant(T0 - HOUR + 60_000, c, f"{home}/code/gamma", "msg_c0", "claude-sonnet-5-5", o=700),
+    ])
+
     local = os.path.join(home, ".claude", "usage-meter", "local")
     os.makedirs(local, exist_ok=True)
     with open(os.path.join(local, "collector.json"), "w") as f:
@@ -159,8 +168,8 @@ class CollectorTest(unittest.TestCase):
         for name in sorted(os.listdir(days)):
             with open(os.path.join(days, name)) as f:
                 reqs += json.load(f)["reqs"]
-        # 18 + fast (alpha) + 8 (beta) + 3 (subagent); the duplicate and the synthetic line are dropped
-        self.assertEqual(len(reqs), 30)
+        # 18 + fast (alpha) + 8 (beta) + 3 (subagent) + 2 (gamma); the duplicate and the synthetic line are dropped
+        self.assertEqual(len(reqs), 32)
         self.assertEqual(len(os.listdir(days)), 3)
 
     def test_view_matches_golden(self):
@@ -180,6 +189,17 @@ class CollectorTest(unittest.TestCase):
         view, _ = self.build()
         titles = {t["id"]: t["label"] for t in view["week"]["threads"]}
         self.assertEqual(titles["aaaaaaaa-0000-0000-0000-000000000001"], "Alpha, renamed")
+
+    def test_newest_folder_wins_in_any_listing_order(self):
+        real = viewmod.os.listdir
+        for order in (sorted, lambda xs: sorted(xs, reverse=True)):
+            viewmod.os.listdir = lambda p, order=order: order(real(p))
+            try:
+                view, _ = self.build()
+            finally:
+                viewmod.os.listdir = real
+            gamma = next(t for t in view["week"]["threads"] if t["id"].startswith("cccccccc"))
+            self.assertTrue(gamma["sub"].endswith("· gamma"), gamma["sub"])
 
     def test_pricer_matches_usd(self):
         prices = umeter.Prices()

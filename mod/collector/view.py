@@ -360,7 +360,8 @@ class ViewBuilder:
         sessions_meta: dict = {}
         prompts: dict = {}
         agents: dict = {}
-        for e in entries:
+        # oldest day first, so a session's newest title and folder win whatever order the files were listed in
+        for e in sorted(entries, key=lambda e: (e.doc.get("day", ""), e.host)):
             for sid, m in e.doc.get("sessions", {}).items():
                 prev = sessions_meta.get(sid)
                 if prev and m.get("remote") and not prev["remote"]:
