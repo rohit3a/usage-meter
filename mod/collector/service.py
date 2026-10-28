@@ -8,13 +8,12 @@ service there. `install --if-needed` is what the mod runs at every session
 start: it does nothing while a collector on the same code is running.
 
 Service: a systemd user unit on Linux, a launchd agent on macOS, and where
-neither is there (WSL without systemd, a container) a detached process that the
+neither is there (Windows, WSL without systemd, a container) a detached process that the
 next session start brings back if it has died. USAGE_METER_SERVICE=process (or
 systemd, launchd) overrides the choice.
 """
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -24,7 +23,9 @@ import subprocess
 import sys
 import time
 
-HOME = os.path.expanduser("~")
+import oscompat
+
+HOME =os.path.expanduser("~")
 ROOT = os.path.join(HOME, ".claude", "usage-meter")
 LOCAL = os.path.join(ROOT, "local")
 APP = os.path.join(ROOT, "app")
@@ -76,8 +77,8 @@ def running_pid() -> int | None:
     except OSError:
         return None
     try:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(f, fcntl.LOCK_UN)
+        oscompat.lock(f, blocking=False)
+        oscompat.unlock(f)
         return None
     except OSError:
         f.seek(0)
@@ -139,7 +140,7 @@ def stop_stray() -> None:
             pass
         if not wait_for(False, 10):
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, oscompat.SIGKILL)
             except OSError:
                 pass
             wait_for(False, 3)
@@ -232,7 +233,7 @@ def start_launchd() -> None:
 def start_process() -> None:
     stop_stray()
     with open(LOG, "a") as log:
-        subprocess.Popen(argv(), stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, close_fds=True)
+        oscompat.spawn_detached(argv(), log)
 
 
 def stop_service(kind: str) -> None:
@@ -254,7 +255,7 @@ def stop_service(kind: str) -> None:
 def install(if_needed: bool) -> dict:
     os.makedirs(LOCAL, exist_ok=True)
     with open(os.path.join(LOCAL, "setup.lock"), "w") as guard:
-        fcntl.flock(guard, fcntl.LOCK_EX)  # sessions starting together take turns
+        oscompat.lock(guard)  # sessions starting together take turns
         prev = load(SETUP, {})
         if if_needed and prev.get("disabled"):
             return {"action": "disabled", "message": "Auto-start is off (/burn uninstall). /burn setup turns it back on."}
@@ -290,7 +291,7 @@ def install(if_needed: bool) -> dict:
 def uninstall() -> dict:
     os.makedirs(LOCAL, exist_ok=True)
     with open(os.path.join(LOCAL, "setup.lock"), "w") as guard:
-        fcntl.flock(guard, fcntl.LOCK_EX)
+        oscompat.lock(guard)
         prev = load(SETUP, {})
         stop_service(prev.get("service", ""))
         shutil.rmtree(APP, ignore_errors=True)

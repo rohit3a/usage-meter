@@ -134,7 +134,8 @@ let mineMtime = -1
 let mineFor = ''
 
 async function initPaths($: $T): Promise<void> {
-  if (!root) root = `${(await $.env.get('HOME')) ?? '.'}/.claude/usage-meter`
+  // Windows sets USERPROFILE, usually not HOME
+  if (!root) root = `${(await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || '.'}/.claude/usage-meter`
 }
 
 async function mtimeOf($: $T, path: string): Promise<number | null> {
@@ -579,6 +580,11 @@ async function runSetup($: $T, args: string[]): Promise<Setup> {
   for (const py of PYTHONS) {
     try {
       const r = await $.process.run([py, script, ...args, '--json'], { timeoutMs: 90_000 })
+      // 9009: Windows' Microsoft Store stub stands in for python3 when only `python` is installed
+      if (r.exitCode === 9009) {
+        missing = `${py} is the Microsoft Store stub`
+        continue
+      }
       const line = r.stdout.trim().split('\n').pop() ?? ''
       try {
         return JSON.parse(line) as Setup
