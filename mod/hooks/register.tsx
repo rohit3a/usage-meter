@@ -202,12 +202,16 @@ function myRunningCodex(): CodexRun | undefined {
   return pulse?.codex.runs.find(r => r.status === 'running' && r.parent?.sid === sessionId)
 }
 
+/** When this session last asked for a rebuild; the pane shows "updating" until view.json is newer. */
+let wantedAt = 0
+
 /** Asks the collector to re-read everything now, then picks up what it writes. */
 async function refreshNow($: $T): Promise<void> {
   await initPaths($)
-  await $.fs.write(`${root}/local/refresh`, String(await $.clock.now()))
-  for (const ms of [800, 1800, 3500]) {
-    $.clock.after(ms, () => void Promise.all([loadView($), loadPulse($)]))
+  wantedAt = await $.clock.now()
+  await $.fs.write(`${root}/local/refresh`, String(wantedAt))
+  for (const ms of [800, 1800, 3500, 6000]) {
+    $.clock.after(ms, () => void Promise.all([loadView($), loadPulse($)]).then(() => $.ui.invalidate('ui.render')))
   }
 }
 
@@ -632,11 +636,15 @@ export const register: Register = (on, options) => {
       immediate: true,
     })
     // Cheap: a stat or two. Reads view.json only when the collector rewrote it.
+    // The collector rebuilds the summary only when asked: when the pane opens and once a minute while it's open.
     let tick = 0
+    let wasOpen = false
     $.clock.every(2000, () => {
       tick += 1
       void (async () => {
         const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+        if (isOpen && (!wasOpen || tick % 30 === 0)) await refreshNow($)
+        wasOpen = isOpen
         if (isOpen || tick % 15 === 0) await loadView($)
         const isCodexLive = codexCalls > 0 || myRunningCodex() !== undefined
         if (isOpen || isCodexLive || tick % 15 === 0) await loadPulse($)
@@ -899,7 +907,8 @@ export const register: Register = (on, options) => {
       const cw = p?.codex.limits?.primary
       const cc = await read($, 'cc')
       const parts = [
-        ...v.windows.filter(w => w.kind === 'five_hour' || w.kind === 'seven_day').map(w => `${w.label} ${w.pct}%`),
+        // the summary is rebuilt on demand, so take the % from this session's live reading when it has one
+        ...v.windows.filter(w => w.kind === 'five_hour' || w.kind === 'seven_day').map(w => `${w.label} ${lastLim.get(w.kind)?.[2] ?? w.pct}%`),
         cw ? `Codex ${Math.round(cw.used_percent)}%` : '',
         cc !== null ? `${fmtUsd(cc)} session` : '',
       ].filter(Boolean)
@@ -945,7 +954,7 @@ export const register: Register = (on, options) => {
         : 'Waiting for the collector’s first summary: a few seconds, or up to a minute while it reads your past sessions.'
       return (
         <Box flexDirection="column" width={W}>
-          <Text bold color={isFailed ? 'red' : undefined}>{isFailed ? 'The collector isn’t running' : 'Starting up'}</Text>
+          <Text bold color={isFailed ? 'red' : undefined}>{isFailed ? 'The collector isn’t running' : wantedAt ? 'Building the summary…' : 'Starting up'}</Text>
           <Text dimColor wrap="wrap">{text}</Text>
           {isFailed && <Text dimColor wrap="wrap">Try /burn setup, or see github.com/rohit3a/usage-meter#troubleshooting</Text>}
         </Box>
@@ -1062,10 +1071,11 @@ export const register: Register = (on, options) => {
       void update($, 'isAllShown', () => false)
       void update($, 'scope', () => x as Scope)
     }
-    const age = Math.max(0, now - Math.max(v.builtAt, (await read($, 'pulse'))?.at ?? 0))
+    const age = Math.max(0, now - v.builtAt)
+    const isUpdating = wantedAt > v.builtAt && now - wantedAt < 30_000
     const refresh = (
       <Box flexDirection="row" flexShrink={0} marginLeft={1}>
-        <Text dimColor>{age < 10_000 ? 'now ' : `${fmtDur(age)} ago `}</Text>
+        <Text dimColor>{isUpdating ? 'updating… ' : age < 10_000 ? 'now ' : `${fmtDur(age)} ago `}</Text>
         <Button key="refresh" label="↻ Refresh" plain onPress={() => void refreshNow($)} />
       </Box>
     )

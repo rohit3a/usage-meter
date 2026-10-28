@@ -158,8 +158,10 @@ tail -50 ~/.claude/usage-meter/local/collector.log             # macOS, or no sy
 - **`mod/collector/view.py`**: inside the collector, does all the arithmetic in its own
   process and writes `local/view.json` (about 100 KB), plus a detail file per recently
   active session in `local/sessions/`. A rebuild takes a fraction of a second (about
-  0.2 s for a week of 40k requests) and runs at most every 10 s, only when the ledger
-  or the limit readings change.
+  0.2 s for a week of 40k requests) and runs on demand: when the pane opens, once a
+  minute while it's open, and on Refresh. Otherwise it runs once an hour, if the ledger
+  or the limit readings changed, so the band's learned rates stay current. The
+  transcript scan is incremental: a full walk once a minute, recent files every 10 s.
 - **`mod/`**: the Claude Code mod. It reads `view.json` only when it changes (a
   stat every 2 s while the pane is open), records the plan-limit readings only a
   live session sees, and draws the status line, the live band above the prompt and

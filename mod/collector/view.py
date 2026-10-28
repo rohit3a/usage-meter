@@ -202,7 +202,11 @@ class ViewBuilder:
         self.group_daily: dict = {}
         self.last_body = ""
         self.last_sig = None
-        self.last_build = 0.0
+        # a restart doesn't rebuild a summary that's under an hour old
+        try:
+            self.last_build = os.stat(os.path.join(root, "local", "view.json")).st_mtime
+        except OSError:
+            self.last_build = 0.0
 
     # -------------------------------------------------------------- loading
 
@@ -281,15 +285,16 @@ class ViewBuilder:
     # -------------------------------------------------------------- build
 
     def maybe_build(self, force: bool = False) -> bool:
+        stale = time.time() - self.last_build
+        # On demand: the pane asks (local/refresh) when it opens, every minute while open,
+        # and on Refresh. Otherwise once an hour, so the band's learned rates stay current.
+        if not force and stale < 3600:
+            return False
         now = now_ms()
         entries = self.load(now)
         lims = self.limits()
         sig = self.signature(entries, lims)
-        stale = time.time() - self.last_build
-        # at most every 10 s (Refresh forces it), and once a minute when nothing changed
-        if not force and sig == self.last_sig and stale < 60:
-            return False
-        if not force and stale < 10:
+        if not force and sig == self.last_sig:
             return False
         self.dedupe(entries)
         view, sessions = self.build(entries, lims, now)
