@@ -170,8 +170,9 @@ class CodexReader:
 
     def step(self, run: dict, kind: str, text: str, ts: int, ok=None) -> None:
         run["steps"].append({"k": kind, "t": clip(text, 160), "ts": ts, "ok": ok})
-        if len(run["steps"]) > 14:
-            del run["steps"][: len(run["steps"]) - 14]
+        # the pane shows the last 8; every step kept is rewritten into live.json for 60 runs
+        if len(run["steps"]) > 8:
+            del run["steps"][: len(run["steps"]) - 8]
 
     def handle(self, run: dict, fs: dict, d: dict) -> None:
         kind = d.get("type")
