@@ -22,6 +22,7 @@ remote copy only when no machine recorded it as its own. Works on Python 3.9+.
 from __future__ import annotations
 
 import argparse
+import bisect
 import datetime as dt
 import fcntl
 import fnmatch
@@ -51,6 +52,7 @@ KEEP_DAYS = 35
 LIMIT_DAYS = 9
 SCAN_SECONDS = 10
 SEEN_PER_FILE = 400
+RELEASE_SECONDS = 300  # free the parsed ledger this long after the last summary build
 
 _stop = threading.Event()
 
@@ -145,6 +147,9 @@ class Prices:
             key=lambda c: c["fromMs"],
         )
         self._cache: dict = {}
+        self._change_ms = [c["fromMs"] for c in self.changes]
+        self._rates: dict = {}  # (model, plan, price epoch) -> rates before the long-prompt tier
+        self._fam: dict = {}
 
     def of(self, model: str):
         if model in self._cache:
@@ -171,11 +176,13 @@ class Prices:
         return row[1] if matched else (model or "unknown")
 
     def family(self, model: str) -> str:
-        m = (model or "").lower()
-        for fam, keys in (("opus", ("opus",)), ("sonnet", ("sonnet",)), ("haiku", ("haiku",)), ("fable", ("fable", "mythos"))):
-            if any(k in m for k in keys):
-                return fam
-        return "other"
+        fam = self._fam.get(model)
+        if fam is None:
+            m = (model or "").lower()
+            fam = next((f for f, keys in (("opus", ("opus",)), ("sonnet", ("sonnet",)), ("haiku", ("haiku",)), ("fable", ("fable", "mythos")))
+                        if any(k in m for k in keys)), "other")
+            self._fam[model] = fam
+        return fam
 
     def is_long(self, model: str, prompt: int) -> bool:
         """Whether this request is priced at its model's long-prompt tier on the API."""
@@ -186,16 +193,38 @@ class Prices:
         """(input, output, cache read) per MTok for this model at this time and prompt size.
         plan=True ignores API-only changes: the reference the plan-limit fit is learned against."""
         row, _, _ = self.of(model)
-        pin, pout, pcr = row[2], row[3], row[4]
-        for c in self.changes:
-            if plan and c.get("apiOnly"):
-                continue
-            if c["model"] == row[0] and ts >= c["fromMs"]:
-                pin, pout, pcr = c.get("in", pin), c.get("out", pout), c.get("cr", pcr)
+        # prices only change at dated entries, so the rates between two of them are the same
+        key = (model, plan, bisect.bisect_right(self._change_ms, ts))
+        hit = self._rates.get(key)
+        if hit is None:
+            pin, pout, pcr = row[2], row[3], row[4]
+            for c in self.changes:
+                if plan and c.get("apiOnly"):
+                    continue
+                if c["model"] == row[0] and ts >= c["fromMs"]:
+                    pin, pout, pcr = c.get("in", pin), c.get("out", pout), c.get("cr", pcr)
+            hit = self._rates[key] = (pin, pout, pcr)
+        pin, pout, pcr = hit
         tier = self.tiers.get(row[0])
         if tier and prompt > tier.get("over", 1 << 62):
             pin, pout, pcr = tier.get("in", pin), tier.get("out", pout), tier.get("cr", pcr)
         return pin, pout, pcr
+
+    def pricer(self, model: str, ts: int, plan: bool = False):
+        """usd() for many requests of one model on one UTC day: prices only change at midnight UTC."""
+        row, mult, _ = self.of(model)
+        tier = self.tiers.get(row[0])
+        over = tier.get("over", 1 << 62) if tier else 1 << 62
+        base = self.rates(model, ts, 0, plan)
+        long = self.rates(model, ts, over + 1, plan) if tier else base
+        k5, k1, kweb = self.cw5, self.cw1, self.web
+
+        def usd(i: int, o: int, cr: int, cw5: int, cw1: int, web: int, fast: int) -> float:
+            pin, pout, pcr = long if i + cr + cw5 + cw1 > over else base
+            u = (i * pin + o * pout + cr * pcr + cw5 * pin * k5 + cw1 * pin * k1) / 1e6
+            return (u * mult if fast else u) + web * kweb
+
+        return usd
 
     def usd(self, model: str, i: int, o: int, cr: int, cw5: int, cw1: int, web: int, fast: int, ts: int = 0, plan: bool = False) -> float:
         (_, mult, _) = self.of(model)
@@ -686,13 +715,24 @@ class Collector:
         inbox = os.path.join(ROOT, "local", "limits")
         out_path = os.path.join(ROOT, "hosts", self.host, "limits.json")
         cutoff = now_ms() - LIMIT_DAYS * 86_400_000
-        current = load_json(out_path, {"samples": []})
-        samples = {(s[0], s[1]): s for s in current.get("samples", []) if s[0] >= cutoff}
-        before = len(samples)
         try:
             names = os.listdir(inbox)
         except OSError:
             names = []
+        # sessions rewrite their file only when a reading changes: skip the merge until one does (or hourly, to prune)
+        sig = []
+        for name in names:
+            try:
+                sig.append((name, os.stat(os.path.join(inbox, name)).st_mtime))
+            except OSError:
+                pass
+        sig = (tuple(sorted(sig)), cutoff // 3_600_000)
+        if sig == getattr(self, "_lim_sig", None) and os.path.exists(out_path):
+            return
+        self._lim_sig = sig
+        current = load_json(out_path, {"samples": []})
+        samples = {(s[0], s[1]): s for s in current.get("samples", []) if s[0] >= cutoff}
+        before = len(samples)
         for name in names:
             path = os.path.join(inbox, name)
             if not name.endswith(".json"):
@@ -883,6 +923,8 @@ def run(once: bool = False) -> None:
                 built_ms = (time.time() - t1) * 1000
                 if built_ms > 1500:
                     log(f"view took {built_ms:.0f} ms")
+            elif builder.entries and time.time() - builder.last_build > RELEASE_SECONDS:
+                builder.release()  # the parsed ledger is ~100+ MB; nobody has looked for a while
             if added >= 500:
                 log(f"+{added} requests ({time.time() - t0:.1f}s)")
         except Exception:

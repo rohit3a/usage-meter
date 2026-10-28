@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import bisect
 import datetime as dt
+import gc
 import json
 import os
 import statistics
@@ -49,8 +50,18 @@ def write_json(path: str, data) -> str:
     return text
 
 
+_dates: dict = {}
+
+
 def local_date(ms: int) -> str:
-    return dt.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d")
+    # every UTC offset is a whole number of quarter hours, so a quarter hour has one local date
+    q = ms // 900_000
+    d = _dates.get(q)
+    if d is None:
+        if len(_dates) > 50_000:
+            _dates.clear()
+        d = _dates[q] = dt.datetime.fromtimestamp(q * 900).strftime("%Y-%m-%d")
+    return d
 
 
 def project_of(cwd: str, home: str) -> str:
@@ -124,12 +135,19 @@ class Entry:
         self.usd = []
         self.plan = []  # priced without API-only changes: what the plan-limit fit learns against
         self.fam = []
+        # a file is one UTC day and prices change only at midnight UTC: price each model once
+        by_model: dict = {}
         for r in doc["reqs"]:
-            m = doc["m"][r[4]] if r[4] < len(doc["m"]) else ""
-            self.usd.append(prices.usd(m, r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[0]))
-            self.plan.append(prices.usd(m, r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[0], plan=True))
-            fam = prices.family(m)
-            if fam == "haiku" and prices.is_long(m, r[5] + r[7] + r[8] + r[9]):
+            p = by_model.get(r[4])
+            if p is None:
+                m = doc["m"][r[4]] if r[4] < len(doc["m"]) else ""
+                ts = r[0] or now_ms()
+                p = by_model[r[4]] = (prices.pricer(m, ts), prices.pricer(m, ts, plan=True), prices.family(m), m)
+            args = (r[5], r[6], r[7], r[8], r[9], r[10], r[11])
+            self.usd.append(p[0](*args))
+            self.plan.append(p[1](*args))
+            fam = p[2]
+            if fam == "haiku" and prices.is_long(p[3], r[5] + r[7] + r[8] + r[9]):
                 fam = "haiku-long"
             self.fam.append(fam)
         sessions = doc.get("sessions", {})
@@ -208,12 +226,20 @@ class ViewBuilder:
         except OSError:
             self.last_build = 0.0
 
+    def release(self) -> None:
+        """Drops the parsed day files between on-demand builds; the next build re-reads them."""
+        self.entries = {}
+        self.group_sig = {}
+        self.group_daily = {}
+        gc.collect()
+
     # -------------------------------------------------------------- loading
 
-    def load(self, now: int) -> list:
+    def day_files(self, now: int) -> list:
+        """(path, mtime) of every day file in the last 32 days, from a directory listing alone."""
         cutoff = dt.datetime.fromtimestamp((now - 32 * DAY) / 1000, dt.timezone.utc).strftime("%Y-%m-%d")
         hosts_dir = os.path.join(self.root, "hosts")
-        seen = set()
+        out = []
         for host in sorted(os.listdir(hosts_dir)) if os.path.isdir(hosts_dir) else []:
             ddir = os.path.join(hosts_dir, host, "days")
             if not os.path.isdir(ddir):
@@ -223,16 +249,21 @@ class ViewBuilder:
                     continue
                 path = os.path.join(ddir, name)
                 try:
-                    mtime = os.stat(path).st_mtime
+                    out.append((path, os.stat(path).st_mtime))
                 except OSError:
                     continue
-                seen.add(path)
-                e = self.entries.get(path)
-                if e is None or e.mtime != mtime:
-                    doc = load_json(path, None)
-                    if not doc or "reqs" not in doc:
-                        continue
-                    self.entries[path] = Entry(path, mtime, doc, self.prices)
+        return out
+
+    def load(self, files: list) -> list:
+        seen = set()
+        for path, mtime in files:
+            seen.add(path)
+            e = self.entries.get(path)
+            if e is None or e.mtime != mtime:
+                doc = load_json(path, None)
+                if not doc or "reqs" not in doc:
+                    continue
+                self.entries[path] = Entry(path, mtime, doc, self.prices)
         for path in [p for p in self.entries if p not in seen]:
             del self.entries[path]
         return list(self.entries.values())
@@ -253,8 +284,8 @@ class ViewBuilder:
                     samples[(s[0], s[1])] = s[:4]
         return sorted(samples.values(), key=lambda s: s[0])
 
-    def signature(self, entries: list, lims: list):
-        return (tuple(sorted((e.path, e.mtime) for e in entries)), len(lims), lims[-1][0] if lims else 0)
+    def signature(self, files: list, lims: list):
+        return (tuple(sorted(files)), len(lims), lims[-1][0] if lims else 0)
 
     # -------------------------------------------------------------- dedupe
 
@@ -291,11 +322,12 @@ class ViewBuilder:
         if not force and stale < 3600:
             return False
         now = now_ms()
-        entries = self.load(now)
+        files = self.day_files(now)
         lims = self.limits()
-        sig = self.signature(entries, lims)
+        sig = self.signature(files, lims)
         if not force and sig == self.last_sig:
             return False
+        entries = self.load(files)
         self.dedupe(entries)
         view, sessions = self.build(entries, lims, now)
         self.last_sig = sig
