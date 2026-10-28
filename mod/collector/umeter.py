@@ -49,7 +49,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PRICES_PATH = os.path.join(HERE, "..", "prices.json")
 KEEP_DAYS = 35
 LIMIT_DAYS = 9
-SCAN_SECONDS = 3
+SCAN_SECONDS = 10
 SEEN_PER_FILE = 400
 
 _stop = threading.Event()
@@ -343,6 +343,8 @@ class Collector:
         self.ledger = Ledger(self.host)
         self.last_ingest = 0
         self.rows_total = 0
+        self.last_walk = 0.0
+        self.hot: list = []
 
     # -- discovery
 
@@ -391,7 +393,20 @@ class Collector:
 
     def ingest(self) -> int:
         added = 0
-        for path, sid, aid, remote in self.transcripts():
+        # full directory walk once a minute; in between only re-check files written in the last hour
+        if time.time() - self.last_walk >= 60:
+            todo = self.transcripts()
+            self.last_walk = time.time()
+            self.hot = []
+            for t in todo:
+                try:
+                    if self.last_walk - os.stat(t[0]).st_mtime < 3600:
+                        self.hot.append(t)
+                except OSError:
+                    pass
+        else:
+            todo = self.hot
+        for path, sid, aid, remote in todo:
             try:
                 added += self.ingest_file(path, sid, aid, remote)
             except Exception:  # one bad file never stops the rest
@@ -823,8 +838,8 @@ def run(once: bool = False) -> None:
         try:
             added = c.ingest()
             wrote = c.ledger.flush(c.state["titles"])
-            # offsets are cheap to redo (every row is keyed by message id), so save them every 30 s
-            if (added or wrote) and time.time() - last_save >= 30:
+            # offsets are cheap to redo (every row is keyed by message id), so save them every 5 min
+            if (added or wrote) and time.time() - last_save >= 300:
                 c.save_state()
                 last_save = time.time()
             c.merge_limits()
