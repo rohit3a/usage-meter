@@ -158,7 +158,7 @@ class CollectorTest(unittest.TestCase):
     def build(self, b=None):
         b = b or self.builder()
         lims = b.limits()
-        entries = b.load(b.day_files(NOW))
+        entries = b.load(b.day_files(NOW), NOW)
         b.dedupe(entries)
         return b.build(entries, lims, NOW)
 
@@ -200,6 +200,22 @@ class CollectorTest(unittest.TestCase):
                 viewmod.os.listdir = real
             gamma = next(t for t in view["week"]["threads"] if t["id"].startswith("cccccccc"))
             self.assertTrue(gamma["sub"].endswith("· gamma"), gamma["sub"])
+
+    def test_compacted_old_days_match_full(self):
+        later = NOW + 12 * 24 * HOUR  # every fixture day is now older than COMPACT_DAYS
+        views = []
+        for days in (viewmod.COMPACT_DAYS, 1000):
+            viewmod.COMPACT_DAYS, saved = days, viewmod.COMPACT_DAYS
+            try:
+                b = self.builder()
+                entries = b.load(b.day_files(later), later)
+                b.dedupe(entries)
+                views.append(stable({"view": b.build(entries, b.limits(), later)[0]}))
+            finally:
+                viewmod.COMPACT_DAYS = saved
+            self.assertEqual(all(e.compact for e in entries), days == viewmod.COMPACT_DAYS)
+        self.assertGreater(views[0]["view"]["monthUsd"], 0)
+        self.assertEqual(views[0], views[1])
 
     def test_pricer_matches_usd(self):
         prices = umeter.Prices()
