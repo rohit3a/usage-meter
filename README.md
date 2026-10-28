@@ -160,9 +160,10 @@ tail -50 ~/.claude/usage-meter/local/collector.log             # macOS, or no sy
   active session in `local/sessions/`. A rebuild takes a fraction of a second (about
   0.2 s for a week of 40k requests) and runs on demand: when the pane opens, once a
   minute while it's open, and on Refresh. Otherwise it runs once an hour, if the ledger
-  or the limit readings changed, so the band's learned rates stay current. The parsed
-  ledger is dropped 5 minutes after the last build, so between builds the collector
-  holds about 50 MB. The transcript scan is incremental: a full walk once a minute,
+  or the limit readings changed, so the band's learned rates stay current. Days older
+  than 10 are deduped and reduced to per-session daily totals as they're read, so a build
+  holds only the recent days' requests (about 120 MB at peak for a month of 300k requests),
+  and the parsed ledger is dropped 5 minutes after the last build (about 50 MB between builds). The transcript scan is incremental: a full walk once a minute,
   recent files every 10 s.
 - **`mod/`**: the Claude Code mod. It reads `view.json` only when it changes (a
   stat every 2 s while the pane is open), records the plan-limit readings only a

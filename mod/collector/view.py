@@ -26,6 +26,10 @@ SHOWN = ("opus", "sonnet", "haiku", "haiku-long")
 HISTORY_DAYS = 14
 TOP = 8
 REBUILD_TOKENS = 50_000  # one request writing this much to the cache re-sent most of a context
+# Breakdowns and the limit fit read requests from the last 9 days at most; older day files only
+# feed the daily history and the 30-day total, so they're reduced to per-session daily totals
+# (after dedupe) as they're loaded.
+COMPACT_DAYS = 10
 
 
 def now_ms() -> int:
@@ -125,7 +129,8 @@ def bucket(d: dict, key) -> Agg:
 
 
 class Entry:
-    """One day file of one host, parsed once per change."""
+    """One day file of one host, parsed once per change. A compact entry keeps only its
+    per-session daily totals and metadata, not its requests."""
 
     def __init__(self, path: str, mtime: float, doc: dict, prices) -> None:
         self.path = path
@@ -153,8 +158,35 @@ class Entry:
         sessions = doc.get("sessions", {})
         self.remote = [bool((sessions.get(doc["s"][r[1]]) or {}).get("remote")) for r in doc["reqs"]]
         self.keep = [True] * len(doc["reqs"])
-        self.daily = None  # {(local date, machine, project): usd}, rebuilt when the file or its dedupe changes
+        self.daily = None  # {(local date, session): usd}, rebuilt when the file or its dedupe changes
         self.first = doc["reqs"][0][0] if doc["reqs"] else 0
+        self.nkeep = len(doc["reqs"])
+        self.compact = False
+
+    def shrink(self) -> None:
+        """Keeps the per-session daily totals (after dedupe) and drops the requests."""
+        self.daily = file_daily(self)
+        self.nkeep = sum(self.keep)
+        self.doc = {k: v for k, v in self.doc.items() if k != "reqs"}
+        self.usd = self.plan = self.fam = self.remote = self.keep = None
+        self.compact = True
+
+    def expand(self, prices) -> None:
+        """Reads the requests back, for a dedupe that needs them."""
+        doc = load_json(self.path, None)
+        if doc and "reqs" in doc:
+            self.__init__(self.path, self.mtime, doc, prices)
+
+
+def file_daily(e: Entry) -> dict:
+    out: dict = {}
+    S = e.doc["s"]
+    for i, r in enumerate(e.doc["reqs"]):
+        if not e.keep[i]:
+            continue
+        key = (local_date(r[0]), S[r[1]])
+        out[key] = out.get(key, 0.0) + e.usd[i]
+    return out
 
 
 class Scope:
@@ -254,16 +286,31 @@ class ViewBuilder:
                     continue
         return out
 
-    def load(self, files: list) -> list:
-        seen = set()
+    def load(self, files: list, now: int) -> list:
+        """A day at a time across hosts: an old day is deduped and shrunk before the next is read,
+        so only the recent days' requests are ever held at once."""
+        old = dt.datetime.fromtimestamp((now - COMPACT_DAYS * DAY) / 1000, dt.timezone.utc).strftime("%Y-%m-%d")
+        by_day: dict = {}
         for path, mtime in files:
-            seen.add(path)
-            e = self.entries.get(path)
-            if e is None or e.mtime != mtime:
-                doc = load_json(path, None)
-                if not doc or "reqs" not in doc:
-                    continue
-                self.entries[path] = Entry(path, mtime, doc, self.prices)
+            by_day.setdefault(os.path.basename(path)[:-5], []).append((path, mtime))
+        seen = set()
+        for day in sorted(by_day):
+            fresh = False
+            for path, mtime in by_day[day]:
+                seen.add(path)
+                e = self.entries.get(path)
+                if e is None or e.mtime != mtime:
+                    doc = load_json(path, None)
+                    if not doc or "reqs" not in doc:
+                        continue
+                    self.entries[path] = Entry(path, mtime, doc, self.prices)
+                    fresh = True
+            if fresh and day < old:
+                group = [self.entries[p] for p, _ in by_day[day] if p in self.entries]
+                self.dedupe(group)
+                for e in group:
+                    if not e.compact:
+                        e.shrink()
         for path in [p for p in self.entries if p not in seen]:
             del self.entries[path]
         return list(self.entries.values())
@@ -300,6 +347,9 @@ class ViewBuilder:
             sig = tuple(sorted((e.path, e.mtime) for e in group))
             if self.group_sig.get(day) == sig:
                 continue
+            for e in group:
+                if e.compact:  # a file of this day changed: its neighbours' rows are needed again
+                    e.expand(self.prices)
             own = set()
             for e in group:
                 for i, r in enumerate(e.doc["reqs"]):
@@ -311,6 +361,7 @@ class ViewBuilder:
                         e.keep[i] = r[12] not in own
                         own.add(r[12])
                 e.daily = None
+                e.nkeep = sum(e.keep)
             self.group_sig[day] = sig
 
     # -------------------------------------------------------------- build
@@ -327,7 +378,7 @@ class ViewBuilder:
         sig = self.signature(files, lims)
         if not force and sig == self.last_sig:
             return False
-        entries = self.load(files)
+        entries = self.load(files, now)
         self.dedupe(entries)
         view, sessions = self.build(entries, lims, now)
         self.last_sig = sig
@@ -392,10 +443,17 @@ class ViewBuilder:
         first_ts = min((e.first for e in entries if e.first), default=None)
         month_from_date = local_date(now - 30 * DAY)
         month = 0.0
+        where: dict = {}
         for e in entries:
             if e.daily is None:
-                e.daily = self.file_daily(e, sessions_meta)
-            for (date, machine, project), usd in e.daily.items():
+                e.daily = file_daily(e)
+            for (date, sid), usd in e.daily.items():
+                w = where.get((sid, e.host))
+                if w is None:
+                    meta = sessions_meta.get(sid) or {}
+                    machine = f"{meta.get('host', e.host)} (remote)" if meta.get("remote") else meta.get("host", e.host)
+                    w = where[(sid, e.host)] = (machine, project_of(meta.get("cwd", ""), self.home))
+                machine, project = w
                 if date >= month_from_date:
                     month += usd
                 dd = daily.setdefault(date, {"hosts": {}, "projects": {}})
@@ -404,7 +462,7 @@ class ViewBuilder:
         # 1) every recent request's plan-reference $, per model family, as a time line
         feats = []
         for e in entries:
-            if e.doc.get("day", "") < row_from_day:
+            if e.compact or e.doc.get("day", "") < row_from_day:
                 continue
             for i, r in enumerate(e.doc["reqs"]):
                 if e.keep[i] and r[0] >= tl_from:
@@ -438,7 +496,7 @@ class ViewBuilder:
         # 3) every breakdown, with each request's share of the limits
         places: dict = {}  # (session, file's host) -> (machine, project)
         for e in entries:
-            if e.doc.get("day", "") < row_from_day:
+            if e.compact or e.doc.get("day", "") < row_from_day:
                 continue
             doc = e.doc
             S, P, A, M = doc["s"], doc["p"], doc["a"], doc["m"]
@@ -482,7 +540,7 @@ class ViewBuilder:
         if recent:
             want = set(recent)
             for e in entries:
-                if e.doc.get("day", "") < row_from_day:
+                if e.compact or e.doc.get("day", "") < row_from_day:
                     continue
                 doc = e.doc
                 S, P, A, M = doc["s"], doc["p"], doc["a"], doc["m"]
@@ -539,18 +597,6 @@ class ViewBuilder:
         }
         details = {sid: self.export_scope(sc, ctx) for sid, sc in sess_scopes.items()}
         return view, details
-
-    def file_daily(self, e: Entry, sessions_meta: dict) -> dict:
-        out: dict = {}
-        S = e.doc["s"]
-        for i, r in enumerate(e.doc["reqs"]):
-            if not e.keep[i]:
-                continue
-            meta = sessions_meta.get(S[r[1]]) or {}
-            machine = f"{meta.get('host', e.host)} (remote)" if meta.get("remote") else meta.get("host", e.host)
-            key = (local_date(r[0]), machine, project_of(meta.get("cwd", ""), self.home))
-            out[key] = out.get(key, 0.0) + e.usd[i]
-        return out
 
     def fix_agent_types(self, scope: Scope, agents: dict) -> None:
         types: dict = {}
@@ -838,7 +884,7 @@ class ViewBuilder:
     def accuracy(self, windows: list, entries: list, now: int) -> dict:
         per_host: dict = {}
         for e in entries:
-            per_host[e.host] = per_host.get(e.host, 0) + sum(1 for k in e.keep if k)
+            per_host[e.host] = per_host.get(e.host, 0) + e.nkeep
         return {"requestsByHost": per_host}
 
     def hosts(self, entries: list) -> list:
