@@ -931,8 +931,8 @@ def run(once: bool = False) -> None:
             log(f"cycle failed: {traceback.format_exc(limit=3)}")
         if once:
             break
-        for _ in range(SCAN_SECONDS * 4):
-            if _stop.wait(0.25) or os.path.exists(os.path.join(ROOT, "local", "refresh")):
+        for _ in range(SCAN_SECONDS * 2):  # a Refresh is picked up within half a second
+            if _stop.wait(0.5) or os.path.exists(os.path.join(ROOT, "local", "refresh")):
                 break
     c.ledger.flush(c.state["titles"])
     c.save_state()
