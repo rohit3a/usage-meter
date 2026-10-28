@@ -1,6 +1,6 @@
 {
   "name": "usage-meter",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "See where every Claude token goes, live: plan-limit % used and left, burn rate, tokens and API-equivalent $, by session, subagent, model and machine",
   "author": {
     "name": "rohit3a",

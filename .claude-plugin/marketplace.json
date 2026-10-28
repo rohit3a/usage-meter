@@ -12,7 +12,7 @@
       "name": "usage-meter",
       "source": "./mod",
       "description": "See where every Claude token goes, live: plan-limit % used and left, burn rate, tokens and API-equivalent $, by session, subagent, model and machine",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "author": {
         "name": "rohit3a",
         "url": "https://github.com/rohit3a"
