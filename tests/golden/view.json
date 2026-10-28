@@ -1,0 +1,1524 @@
+{
+ "details": {
+  "aaaaaaaa-0000-0000-0000-000000000001": {
+   "cache": {
+    "fresh": 19000,
+    "out": 8816,
+    "read": 380000,
+    "rebuildUsd": 0.0,
+    "rebuilds": 0,
+    "write": 218000
+   },
+   "dims": {
+    "agents": [
+     {
+      "label": "main thread",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     }
+    ],
+    "effort": [
+     {
+      "label": "default",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     }
+    ],
+    "machines": [
+     {
+      "label": "Test",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     }
+    ],
+    "mcp": [],
+    "models": [
+     {
+      "label": "Opus 5.5",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     }
+    ],
+    "projects": [
+     {
+      "label": "alpha",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     }
+    ],
+    "skills": []
+   },
+   "reqs": 19,
+   "sessions": 1,
+   "tasks": [
+    {
+     "label": "Alpha task on day -0",
+     "ms": 7920000,
+     "p5": 5.316,
+     "p7": 1.948,
+     "reqs": 7,
+     "sub": "Alpha, renamed",
+     "tok": [
+      7000,
+      3050,
+      140000,
+      74000
+     ],
+     "usd": 0.743
+    },
+    {
+     "label": "Alpha task on day -2",
+     "ms": 6030000,
+     "p5": 4.893,
+     "p7": 1.793,
+     "reqs": 6,
+     "sub": "Alpha, renamed",
+     "tok": [
+      6000,
+      2994,
+      120000,
+      72000
+     ],
+     "usd": 0.6839
+    },
+    {
+     "label": "Alpha task on day -1",
+     "ms": 6030000,
+     "p5": 4.862,
+     "p7": 1.781,
+     "reqs": 6,
+     "sub": "Alpha, renamed",
+     "tok": [
+      6000,
+      2772,
+      120000,
+      72000
+     ],
+     "usd": 0.6794
+    }
+   ],
+   "threads": [
+    {
+     "agents": 0,
+     "id": "aaaaaaaa-0000-0000-0000-000000000001",
+     "kids": [],
+     "label": "Alpha, renamed",
+     "ms": 180690000,
+     "p5": 15.071,
+     "p7": 5.523,
+     "reqs": 19,
+     "sub": "Test \u00b7 alpha",
+     "tasks": [
+      {
+       "label": "Alpha task on day -0",
+       "ms": 7890000,
+       "p5": 5.316,
+       "p7": 1.948,
+       "reqs": 7,
+       "sub": "",
+       "tok": [
+        7000,
+        3050,
+        140000,
+        74000
+       ],
+       "usd": 0.743
+      },
+      {
+       "label": "Alpha task on day -2",
+       "ms": 6000000,
+       "p5": 4.893,
+       "p7": 1.793,
+       "reqs": 6,
+       "sub": "",
+       "tok": [
+        6000,
+        2994,
+        120000,
+        72000
+       ],
+       "usd": 0.6839
+      },
+      {
+       "label": "Alpha task on day -1",
+       "ms": 6000000,
+       "p5": 4.862,
+       "p7": 1.781,
+       "reqs": 6,
+       "sub": "",
+       "tok": [
+        6000,
+        2772,
+        120000,
+        72000
+       ],
+       "usd": 0.6794
+      }
+     ],
+     "tok": [
+      19000,
+      8816,
+      380000,
+      218000
+     ],
+     "usd": 2.1063
+    }
+   ],
+   "tok": [
+    19000,
+    8816,
+    380000,
+    218000
+   ],
+   "usd": 2.1063
+  },
+  "bbbbbbbb-0000-0000-0000-000000000002": {
+   "cache": {
+    "fresh": 9000,
+    "out": 5500,
+    "read": 440000,
+    "rebuildUsd": 0.0,
+    "rebuilds": 0,
+    "write": 22000
+   },
+   "dims": {
+    "agents": [
+     {
+      "label": "main thread",
+      "ms": 210000,
+      "p5": 0.441,
+      "p7": 0.261,
+      "reqs": 8,
+      "sub": "",
+      "tok": [
+       6000,
+       4000,
+       380000,
+       16000
+      ],
+      "usd": 0.0914
+     },
+     {
+      "label": "Explore",
+      "ms": 2000,
+      "p5": 0.222,
+      "p7": 0.149,
+      "reqs": 3,
+      "sub": "",
+      "tok": [
+       3000,
+       1500,
+       60000,
+       6000
+      ],
+      "usd": 0.051
+     }
+    ],
+    "effort": [
+     {
+      "label": "default",
+      "ms": 302000,
+      "p5": 0.663,
+      "p7": 0.41,
+      "reqs": 11,
+      "sub": "",
+      "tok": [
+       9000,
+       5500,
+       440000,
+       22000
+      ],
+      "usd": 0.1424
+     }
+    ],
+    "machines": [
+     {
+      "label": "Test",
+      "ms": 302000,
+      "p5": 0.663,
+      "p7": 0.41,
+      "reqs": 11,
+      "sub": "",
+      "tok": [
+       9000,
+       5500,
+       440000,
+       22000
+      ],
+      "usd": 0.1424
+     }
+    ],
+    "mcp": [],
+    "models": [
+     {
+      "label": "Sonnet 5.5",
+      "ms": 272000,
+      "p5": 0.518,
+      "p7": 0.349,
+      "reqs": 7,
+      "sub": "",
+      "tok": [
+       7000,
+       3500,
+       140000,
+       14000
+      ],
+      "usd": 0.119
+     },
+     {
+      "label": "Haiku 5.5",
+      "ms": 180000,
+      "p5": 0.145,
+      "p7": 0.061,
+      "reqs": 4,
+      "sub": "",
+      "tok": [
+       2000,
+       2000,
+       300000,
+       8000
+      ],
+      "usd": 0.0234
+     }
+    ],
+    "projects": [
+     {
+      "label": "beta",
+      "ms": 302000,
+      "p5": 0.663,
+      "p7": 0.41,
+      "reqs": 11,
+      "sub": "",
+      "tok": [
+       9000,
+       5500,
+       440000,
+       22000
+      ],
+      "usd": 0.1424
+     }
+    ],
+    "skills": []
+   },
+   "reqs": 11,
+   "sessions": 1,
+   "tasks": [
+    {
+     "label": "Beta: long prompts on Haiku",
+     "ms": 210000,
+     "p5": 0.441,
+     "p7": 0.261,
+     "reqs": 8,
+     "sub": "bbbbbbbb",
+     "tok": [
+      6000,
+      4000,
+      380000,
+      16000
+     ],
+     "usd": 0.0914
+    },
+    {
+     "label": "(no prompt)",
+     "ms": 2000,
+     "p5": 0.222,
+     "p7": 0.149,
+     "reqs": 3,
+     "sub": "bbbbbbbb",
+     "tok": [
+      3000,
+      1500,
+      60000,
+      6000
+     ],
+     "usd": 0.051
+    }
+   ],
+   "threads": [
+    {
+     "agents": 1,
+     "id": "bbbbbbbb-0000-0000-0000-000000000002",
+     "kids": [
+      {
+       "depth": 1,
+       "label": "main thread",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "depth": 1,
+       "label": "Explore: find callers",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "label": "beta",
+     "ms": 302000,
+     "p5": 0.663,
+     "p7": 0.41,
+     "reqs": 11,
+     "sub": "Test \u00b7 beta",
+     "tasks": [
+      {
+       "label": "Beta: long prompts on Haiku",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "label": "(no prompt)",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "tok": [
+      9000,
+      5500,
+      440000,
+      22000
+     ],
+     "usd": 0.1424
+    }
+   ],
+   "tok": [
+    9000,
+    5500,
+    440000,
+    22000
+   ],
+   "usd": 0.1424
+  }
+ },
+ "view": {
+  "accuracy": {
+   "requestsByHost": {
+    "Test": 30
+   }
+  },
+  "biggestSessionUsd": 2.11,
+  "history": [
+   {
+    "date": "2026-10-10",
+    "hosts": {},
+    "label": "Sat 10",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-11",
+    "hosts": {},
+    "label": "Sun 11",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-12",
+    "hosts": {},
+    "label": "Mon 12",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-13",
+    "hosts": {},
+    "label": "Tue 13",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-14",
+    "hosts": {},
+    "label": "Wed 14",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-15",
+    "hosts": {},
+    "label": "Thu 15",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-16",
+    "hosts": {},
+    "label": "Fri 16",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-17",
+    "hosts": {},
+    "label": "Sat 17",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-18",
+    "hosts": {},
+    "label": "Sun 18",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-19",
+    "hosts": {},
+    "label": "Mon 19",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-20",
+    "hosts": {},
+    "label": "Tue 20",
+    "top": [],
+    "total": 0
+   },
+   {
+    "date": "2026-10-21",
+    "hosts": {
+     "Test": 0.68
+    },
+    "label": "Wed 21",
+    "top": [
+     [
+      "alpha",
+      0.68
+     ]
+    ],
+    "total": 0.68
+   },
+   {
+    "date": "2026-10-22",
+    "hosts": {
+     "Test": 0.68
+    },
+    "label": "Thu 22",
+    "top": [
+     [
+      "alpha",
+      0.68
+     ]
+    ],
+    "total": 0.68
+   },
+   {
+    "date": "2026-10-23",
+    "hosts": {
+     "Test": 0.89
+    },
+    "label": "Fri 23",
+    "top": [
+     [
+      "alpha",
+      0.74
+     ],
+     [
+      "beta",
+      0.14
+     ]
+    ],
+    "total": 0.89
+   }
+  ],
+  "host": "Test",
+  "hosts": [
+   {
+    "host": "Test",
+    "isSelf": true,
+    "subscription": "",
+    "syncError": null
+   }
+  ],
+  "monthUsd": 2.2487,
+  "sessionUsd": {
+   "aaaaaaaa-0000-0000-0000-000000000001": 2.1063,
+   "bbbbbbbb-0000-0000-0000-000000000002": 0.1424
+  },
+  "typicalSessionUsd": 2.11,
+  "v": 1,
+  "week": {
+   "cache": {
+    "fresh": 28000,
+    "out": 14316,
+    "read": 820000,
+    "rebuildUsd": 0.0,
+    "rebuilds": 0,
+    "write": 240000
+   },
+   "dims": {
+    "agents": [
+     {
+      "label": "main thread",
+      "ms": 180690000,
+      "p5": 15.512,
+      "p7": 5.783,
+      "reqs": 27,
+      "sub": "",
+      "tok": [
+       25000,
+       12816,
+       760000,
+       234000
+      ],
+      "usd": 2.1977
+     },
+     {
+      "label": "Explore",
+      "ms": 2000,
+      "p5": 0.222,
+      "p7": 0.149,
+      "reqs": 3,
+      "sub": "",
+      "tok": [
+       3000,
+       1500,
+       60000,
+       6000
+      ],
+      "usd": 0.051
+     }
+    ],
+    "effort": [
+     {
+      "label": "default",
+      "ms": 180690000,
+      "p5": 15.734,
+      "p7": 5.933,
+      "reqs": 30,
+      "sub": "",
+      "tok": [
+       28000,
+       14316,
+       820000,
+       240000
+      ],
+      "usd": 2.2487
+     }
+    ],
+    "machines": [
+     {
+      "label": "Test",
+      "ms": 180690000,
+      "p5": 15.734,
+      "p7": 5.933,
+      "reqs": 30,
+      "sub": "",
+      "tok": [
+       28000,
+       14316,
+       820000,
+       240000
+      ],
+      "usd": 2.2487
+     }
+    ],
+    "mcp": [],
+    "models": [
+     {
+      "label": "Opus 5.5",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     },
+     {
+      "label": "Sonnet 5.5",
+      "ms": 272000,
+      "p5": 0.518,
+      "p7": 0.349,
+      "reqs": 7,
+      "sub": "",
+      "tok": [
+       7000,
+       3500,
+       140000,
+       14000
+      ],
+      "usd": 0.119
+     },
+     {
+      "label": "Haiku 5.5",
+      "ms": 180000,
+      "p5": 0.145,
+      "p7": 0.061,
+      "reqs": 4,
+      "sub": "",
+      "tok": [
+       2000,
+       2000,
+       300000,
+       8000
+      ],
+      "usd": 0.0234
+     }
+    ],
+    "projects": [
+     {
+      "label": "alpha",
+      "ms": 180690000,
+      "p5": 15.071,
+      "p7": 5.523,
+      "reqs": 19,
+      "sub": "",
+      "tok": [
+       19000,
+       8816,
+       380000,
+       218000
+      ],
+      "usd": 2.1063
+     },
+     {
+      "label": "beta",
+      "ms": 302000,
+      "p5": 0.663,
+      "p7": 0.41,
+      "reqs": 11,
+      "sub": "",
+      "tok": [
+       9000,
+       5500,
+       440000,
+       22000
+      ],
+      "usd": 0.1424
+     }
+    ],
+    "skills": []
+   },
+   "reqs": 30,
+   "sessions": 2,
+   "tasks": [
+    {
+     "label": "Alpha task on day -0",
+     "ms": 7920000,
+     "p5": 5.316,
+     "p7": 1.948,
+     "reqs": 7,
+     "sub": "Alpha, renamed",
+     "tok": [
+      7000,
+      3050,
+      140000,
+      74000
+     ],
+     "usd": 0.743
+    },
+    {
+     "label": "Alpha task on day -2",
+     "ms": 6030000,
+     "p5": 4.893,
+     "p7": 1.793,
+     "reqs": 6,
+     "sub": "Alpha, renamed",
+     "tok": [
+      6000,
+      2994,
+      120000,
+      72000
+     ],
+     "usd": 0.6839
+    },
+    {
+     "label": "Alpha task on day -1",
+     "ms": 6030000,
+     "p5": 4.862,
+     "p7": 1.781,
+     "reqs": 6,
+     "sub": "Alpha, renamed",
+     "tok": [
+      6000,
+      2772,
+      120000,
+      72000
+     ],
+     "usd": 0.6794
+    },
+    {
+     "label": "Beta: long prompts on Haiku",
+     "ms": 210000,
+     "p5": 0.441,
+     "p7": 0.261,
+     "reqs": 8,
+     "sub": "bbbbbbbb",
+     "tok": [
+      6000,
+      4000,
+      380000,
+      16000
+     ],
+     "usd": 0.0914
+    },
+    {
+     "label": "(no prompt)",
+     "ms": 2000,
+     "p5": 0.222,
+     "p7": 0.149,
+     "reqs": 3,
+     "sub": "bbbbbbbb",
+     "tok": [
+      3000,
+      1500,
+      60000,
+      6000
+     ],
+     "usd": 0.051
+    }
+   ],
+   "threads": [
+    {
+     "agents": 0,
+     "id": "aaaaaaaa-0000-0000-0000-000000000001",
+     "kids": [],
+     "label": "Alpha, renamed",
+     "ms": 180690000,
+     "p5": 15.071,
+     "p7": 5.523,
+     "reqs": 19,
+     "sub": "Test \u00b7 alpha",
+     "tasks": [
+      {
+       "label": "Alpha task on day -0",
+       "ms": 7890000,
+       "p5": 5.316,
+       "p7": 1.948,
+       "reqs": 7,
+       "sub": "",
+       "tok": [
+        7000,
+        3050,
+        140000,
+        74000
+       ],
+       "usd": 0.743
+      },
+      {
+       "label": "Alpha task on day -2",
+       "ms": 6000000,
+       "p5": 4.893,
+       "p7": 1.793,
+       "reqs": 6,
+       "sub": "",
+       "tok": [
+        6000,
+        2994,
+        120000,
+        72000
+       ],
+       "usd": 0.6839
+      },
+      {
+       "label": "Alpha task on day -1",
+       "ms": 6000000,
+       "p5": 4.862,
+       "p7": 1.781,
+       "reqs": 6,
+       "sub": "",
+       "tok": [
+        6000,
+        2772,
+        120000,
+        72000
+       ],
+       "usd": 0.6794
+      }
+     ],
+     "tok": [
+      19000,
+      8816,
+      380000,
+      218000
+     ],
+     "usd": 2.1063
+    },
+    {
+     "agents": 1,
+     "id": "bbbbbbbb-0000-0000-0000-000000000002",
+     "kids": [
+      {
+       "depth": 1,
+       "label": "main thread",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "depth": 1,
+       "label": "Explore: find callers",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "label": "beta",
+     "ms": 302000,
+     "p5": 0.663,
+     "p7": 0.41,
+     "reqs": 11,
+     "sub": "Test \u00b7 beta",
+     "tasks": [
+      {
+       "label": "Beta: long prompts on Haiku",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "label": "(no prompt)",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "tok": [
+      9000,
+      5500,
+      440000,
+      22000
+     ],
+     "usd": 0.1424
+    }
+   ],
+   "tok": [
+    28000,
+    14316,
+    820000,
+    240000
+   ],
+   "usd": 2.2487
+  },
+  "window": {
+   "cache": {
+    "fresh": 16000,
+    "out": 8550,
+    "read": 580000,
+    "rebuildUsd": 0.0,
+    "rebuilds": 0,
+    "write": 96000
+   },
+   "dims": {
+    "agents": [
+     {
+      "label": "main thread",
+      "ms": 7890000,
+      "p5": 5.757,
+      "p7": 2.209,
+      "reqs": 15,
+      "sub": "",
+      "tok": [
+       13000,
+       7050,
+       520000,
+       90000
+      ],
+      "usd": 0.8344
+     },
+     {
+      "label": "Explore",
+      "ms": 2000,
+      "p5": 0.222,
+      "p7": 0.149,
+      "reqs": 3,
+      "sub": "",
+      "tok": [
+       3000,
+       1500,
+       60000,
+       6000
+      ],
+      "usd": 0.051
+     }
+    ],
+    "effort": [
+     {
+      "label": "default",
+      "ms": 7890000,
+      "p5": 5.979,
+      "p7": 2.358,
+      "reqs": 18,
+      "sub": "",
+      "tok": [
+       16000,
+       8550,
+       580000,
+       96000
+      ],
+      "usd": 0.8854
+     }
+    ],
+    "machines": [
+     {
+      "label": "Test",
+      "ms": 7890000,
+      "p5": 5.979,
+      "p7": 2.358,
+      "reqs": 18,
+      "sub": "",
+      "tok": [
+       16000,
+       8550,
+       580000,
+       96000
+      ],
+      "usd": 0.8854
+     }
+    ],
+    "mcp": [],
+    "models": [
+     {
+      "label": "Opus 5.5",
+      "ms": 7890000,
+      "p5": 5.316,
+      "p7": 1.948,
+      "reqs": 7,
+      "sub": "",
+      "tok": [
+       7000,
+       3050,
+       140000,
+       74000
+      ],
+      "usd": 0.743
+     },
+     {
+      "label": "Sonnet 5.5",
+      "ms": 272000,
+      "p5": 0.518,
+      "p7": 0.349,
+      "reqs": 7,
+      "sub": "",
+      "tok": [
+       7000,
+       3500,
+       140000,
+       14000
+      ],
+      "usd": 0.119
+     },
+     {
+      "label": "Haiku 5.5",
+      "ms": 180000,
+      "p5": 0.145,
+      "p7": 0.061,
+      "reqs": 4,
+      "sub": "",
+      "tok": [
+       2000,
+       2000,
+       300000,
+       8000
+      ],
+      "usd": 0.0234
+     }
+    ],
+    "projects": [
+     {
+      "label": "alpha",
+      "ms": 7890000,
+      "p5": 5.316,
+      "p7": 1.948,
+      "reqs": 7,
+      "sub": "",
+      "tok": [
+       7000,
+       3050,
+       140000,
+       74000
+      ],
+      "usd": 0.743
+     },
+     {
+      "label": "beta",
+      "ms": 302000,
+      "p5": 0.663,
+      "p7": 0.41,
+      "reqs": 11,
+      "sub": "",
+      "tok": [
+       9000,
+       5500,
+       440000,
+       22000
+      ],
+      "usd": 0.1424
+     }
+    ],
+    "skills": []
+   },
+   "reqs": 18,
+   "sessions": 2,
+   "tasks": [
+    {
+     "label": "Alpha task on day -0",
+     "ms": 7920000,
+     "p5": 5.316,
+     "p7": 1.948,
+     "reqs": 7,
+     "sub": "Alpha, renamed",
+     "tok": [
+      7000,
+      3050,
+      140000,
+      74000
+     ],
+     "usd": 0.743
+    },
+    {
+     "label": "Beta: long prompts on Haiku",
+     "ms": 210000,
+     "p5": 0.441,
+     "p7": 0.261,
+     "reqs": 8,
+     "sub": "bbbbbbbb",
+     "tok": [
+      6000,
+      4000,
+      380000,
+      16000
+     ],
+     "usd": 0.0914
+    },
+    {
+     "label": "(no prompt)",
+     "ms": 2000,
+     "p5": 0.222,
+     "p7": 0.149,
+     "reqs": 3,
+     "sub": "bbbbbbbb",
+     "tok": [
+      3000,
+      1500,
+      60000,
+      6000
+     ],
+     "usd": 0.051
+    }
+   ],
+   "threads": [
+    {
+     "agents": 0,
+     "id": "aaaaaaaa-0000-0000-0000-000000000001",
+     "kids": [],
+     "label": "Alpha, renamed",
+     "ms": 7890000,
+     "p5": 5.316,
+     "p7": 1.948,
+     "reqs": 7,
+     "sub": "Test \u00b7 alpha",
+     "tasks": [
+      {
+       "label": "Alpha task on day -0",
+       "ms": 7890000,
+       "p5": 5.316,
+       "p7": 1.948,
+       "reqs": 7,
+       "sub": "",
+       "tok": [
+        7000,
+        3050,
+        140000,
+        74000
+       ],
+       "usd": 0.743
+      }
+     ],
+     "tok": [
+      7000,
+      3050,
+      140000,
+      74000
+     ],
+     "usd": 0.743
+    },
+    {
+     "agents": 1,
+     "id": "bbbbbbbb-0000-0000-0000-000000000002",
+     "kids": [
+      {
+       "depth": 1,
+       "label": "main thread",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "depth": 1,
+       "label": "Explore: find callers",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "label": "beta",
+     "ms": 302000,
+     "p5": 0.663,
+     "p7": 0.41,
+     "reqs": 11,
+     "sub": "Test \u00b7 beta",
+     "tasks": [
+      {
+       "label": "Beta: long prompts on Haiku",
+       "ms": 210000,
+       "p5": 0.441,
+       "p7": 0.261,
+       "reqs": 8,
+       "sub": "",
+       "tok": [
+        6000,
+        4000,
+        380000,
+        16000
+       ],
+       "usd": 0.0914
+      },
+      {
+       "label": "(no prompt)",
+       "ms": 2000,
+       "p5": 0.222,
+       "p7": 0.149,
+       "reqs": 3,
+       "sub": "",
+       "tok": [
+        3000,
+        1500,
+        60000,
+        6000
+       ],
+       "usd": 0.051
+      }
+     ],
+     "tok": [
+      9000,
+      5500,
+      440000,
+      22000
+     ],
+     "usd": 0.1424
+    }
+   ],
+   "tok": [
+    16000,
+    8550,
+    580000,
+    96000
+   ],
+   "usd": 0.8854
+  },
+  "windows": [
+   {
+    "atReset": 7.0,
+    "burnPerHour": 0.0,
+    "confidence": "low",
+    "fullAt": null,
+    "isReset": false,
+    "kind": "five_hour",
+    "label": "5h",
+    "models": [
+     {
+      "family": "opus",
+      "label": "Opus",
+      "points": 3.2,
+      "weight": 1.0
+     },
+     {
+      "family": "sonnet",
+      "label": "Sonnet",
+      "points": 0.5,
+      "weight": 0.544
+     },
+     {
+      "family": "haiku",
+      "label": "Haiku",
+      "points": 0.0,
+      "weight": 0.921
+     },
+     {
+      "family": "haiku-long",
+      "label": "Haiku, prompts over 100k",
+      "points": 0.1,
+      "weight": 0.859
+     }
+    ],
+    "outside": "unknown",
+    "pct": 7,
+    "rate": 7.15532462,
+    "rateFrom": "learned",
+    "rates": {
+     "fable": 6.59630607,
+     "haiku": 6.58800239,
+     "haiku-long": 6.14963505,
+     "opus": 7.15532462,
+     "other": 6.59630607,
+     "sonnet": 3.89597673
+    },
+    "readings": 12,
+    "resetsAt": 1792767600000,
+    "spread": 0.83,
+    "stretches": [
+     {
+      "from": 1792750800000,
+      "mostly": "Opus",
+      "opusShare": 1.0,
+      "pctFrom": 3,
+      "pctTo": 4,
+      "to": 1792752000000,
+      "usd": 0.111,
+      "usdPerPoint": 0.111
+     },
+     {
+      "from": 1792752000000,
+      "mostly": "Opus",
+      "opusShare": 0.99,
+      "pctFrom": 4,
+      "pctTo": 5,
+      "to": 1792753200000,
+      "usd": 0.113,
+      "usdPerPoint": 0.113
+     },
+     {
+      "from": 1792753200000,
+      "mostly": "Sonnet",
+      "opusShare": 0.42,
+      "pctFrom": 5,
+      "pctTo": 6,
+      "to": 1792754400000,
+      "usd": 0.255,
+      "usdPerPoint": 0.205
+     },
+     {
+      "from": 1792754400000,
+      "mostly": "Opus",
+      "opusShare": 1.0,
+      "pctFrom": 6,
+      "pctTo": 7,
+      "to": 1792755600000,
+      "usd": 0.114,
+      "usdPerPoint": 0.114
+     }
+    ],
+    "typicalSessions": 6.1,
+    "untrackedPct": null,
+    "usdInWindow": 0.885,
+    "usdLeft": 12.93
+   },
+   {
+    "atReset": 23.6,
+    "burnPerHour": 0.123,
+    "confidence": "low",
+    "fullAt": 1795335384479,
+    "isReset": false,
+    "kind": "seven_day",
+    "label": "7d",
+    "models": [
+     {
+      "family": "opus",
+      "label": "Opus",
+      "points": 0.6,
+      "weight": 1.0
+     },
+     {
+      "family": "sonnet",
+      "label": "Sonnet",
+      "points": 0.3,
+      "weight": 1.0
+     },
+     {
+      "family": "haiku",
+      "label": "Haiku",
+      "points": 0.0,
+      "weight": 1.0
+     },
+     {
+      "family": "haiku-long",
+      "label": "Haiku, prompts over 100k",
+      "points": 0.1,
+      "weight": 1.0
+     }
+    ],
+    "outside": "unknown",
+    "pct": 12,
+    "rate": 2.62191924,
+    "rateFrom": "learned",
+    "rates": {
+     "fable": 2.62191924,
+     "haiku": 2.62191924,
+     "haiku-long": 2.62191924,
+     "opus": 2.62191924,
+     "other": 2.62191924,
+     "sonnet": 2.62191924
+    },
+    "readings": 12,
+    "resetsAt": 1793102400000,
+    "spread": null,
+    "stretches": [
+     {
+      "from": 1792752000000,
+      "mostly": "Opus",
+      "opusShare": 0.59,
+      "pctFrom": 11,
+      "pctTo": 12,
+      "to": 1792754400000,
+      "usd": 0.367,
+      "usdPerPoint": 0.381
+     }
+    ],
+    "typicalSessions": 15.8,
+    "untrackedPct": null,
+    "usdInWindow": 2.249,
+    "usdLeft": 33.37
+   }
+  ]
+ }
+}

@@ -236,8 +236,14 @@ only claimed when there are 3+ consistent stretches and the gap is a whole point
 git clone https://github.com/rohit3a/usage-meter.git && cd usage-meter
 deploy/install.sh                        # loads mod/ from this checkout in every session
 (cd mod && claude plugin validate . && claude plugin test .)
+python3 -m unittest discover -s tests -v            # collector: transcripts -> ledger -> view.json
 python3 mod/collector/umeter.py report --hours 5   # spend per machine and session
 ```
+
+The collector tests feed synthetic transcripts through `umeter.py once` in a temporary home and
+compare the summary against `tests/golden/view.json`. After an intended change to the summary,
+refresh it with `UPDATE_GOLDEN=1 python3 -m unittest discover -s tests` and review the diff.
+CI runs both suites on every pull request.
 
 Edits to `mod/hooks/` reload in open sessions; edits to `mod/collector/` reach the running
 collector at the next session start (or `/burn setup`). Bump `VERSION` in `umeter.py` when the
